@@ -64,6 +64,7 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, task design, controls, metrics, and build order
 - [`docs/08-v1.1-model-scale-selection.md`](docs/08-v1.1-model-scale-selection.md) — exact decoder brackets and hardware-aware selection protocol
 - [`docs/09-v1.1-symbolic-codec.md`](docs/09-v1.1-symbolic-codec.md) — qualified symbolic grammar, context boundary, and decoder CPU contract
+- [`docs/10-v1.1-cuda-preflight.md`](docs/10-v1.1-cuda-preflight.md) — exact RTX 4060 Ti throughput and memory procedure
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
@@ -82,9 +83,26 @@ causal label mask:          answer tokens only
 shared decoder family:      PC-4M, PC-10M, PC-18M
 exact parameters:           4,741,120 / 9,859,840 / 17,731,584
 CPU smoke:                  forward/backward implemented for all three
+CUDA preflight runner:      deterministic 30-case default sweep and atomic JSON
 ```
 
-No empirical learning capability, GPU throughput, or plural-cognition claim has yet been established. The next slice is the target-machine CUDA preflight, deterministic training stream, run manifests, and short learning curves.
+No empirical learning capability, GPU throughput, or plural-cognition claim has yet been established. The next external qualification is the exact target-machine CUDA sweep on the RTX 4060 Ti, followed by the deterministic training stream, run manifests, and short learning curves.
+
+## Commands
+
+Install the research and training dependencies:
+
+```text
+python -m pip install -e ".[dev,train]"
+```
+
+Validate the CUDA sweep without requiring a GPU:
+
+```text
+plural-cognition-cuda-preflight --list-only
+```
+
+The complete target-machine command is documented in `docs/10-v1.1-cuda-preflight.md`.
 
 ## One-sentence description
 
