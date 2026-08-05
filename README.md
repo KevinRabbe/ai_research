@@ -61,16 +61,16 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/04-open-ended-self-improvement.md`](docs/04-open-ended-self-improvement.md) — recursive collective improvement across time
 - [`docs/05-evolutionary-constitution.md`](docs/05-evolutionary-constitution.md) — rules that permit architectural freedom without trusting unverified changes
 - [`docs/06-roadmap.md`](docs/06-roadmap.md) — gated research sequence
-- [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, model preflight, task design, controls, metrics, and build order
-- [`docs/08-v1.1-model-scale-selection.md`](docs/08-v1.1-model-scale-selection.md) — hardware-aware model brackets and selection protocol
-- [`docs/09-v1.1-symbolic-codec.md`](docs/09-v1.1-symbolic-codec.md) — qualified 75-token grammar, causal sequence contract, and context boundary
+- [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, task design, controls, metrics, and build order
+- [`docs/08-v1.1-model-scale-selection.md`](docs/08-v1.1-model-scale-selection.md) — exact decoder brackets and hardware-aware selection protocol
+- [`docs/09-v1.1-symbolic-codec.md`](docs/09-v1.1-symbolic-codec.md) — qualified symbolic grammar, context boundary, and decoder CPU contract
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
 
 V1.0 is qualified: the repository contains the exact Boolean world, public evidence boundary, ambiguity rejection, and hidden exhaustive evaluator.
 
-The first V1.1 trust boundary is also qualified:
+V1.1 now contains:
 
 ```text
 fixed symbolic vocabulary: 75 tokens
@@ -79,9 +79,12 @@ full causal context:        256 tokens
 public task codec:          deterministic and lossless for model-visible semantics
 mechanism parser:           strict and fail-closed
 causal label mask:          answer tokens only
+shared decoder family:      PC-4M, PC-10M, PC-18M
+exact parameters:           4,741,120 / 9,859,840 / 17,731,584
+CPU smoke:                  forward/backward implemented for all three
 ```
 
-No empirical model capability or plural-cognition claim has yet been established. The next slice is the decoder implementation and exact parameter-count/CPU forward-backward qualification.
+No empirical learning capability, GPU throughput, or plural-cognition claim has yet been established. The next slice is the target-machine CUDA preflight, deterministic training stream, run manifests, and short learning curves.
 
 ## One-sentence description
 
