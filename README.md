@@ -61,25 +61,35 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/04-open-ended-self-improvement.md`](docs/04-open-ended-self-improvement.md) — recursive collective improvement across time
 - [`docs/05-evolutionary-constitution.md`](docs/05-evolutionary-constitution.md) — rules that permit architectural freedom without trusting unverified changes
 - [`docs/06-roadmap.md`](docs/06-roadmap.md) — gated research sequence
-- [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, model preflight, task design, controls, metrics, and build order
+- [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, task design, controls, metrics, and build order
+- [`docs/08-v1.1-model-scale-selection.md`](docs/08-v1.1-model-scale-selection.md) — RTX 4060 Ti model candidates, preflight protocol, and selection rule
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
 
-The repository currently defines the research program and the Version 1 implementation plan. No empirical capability claim has yet been established.
+V1.0—the deterministic Boolean world and hidden exact evaluator—is implemented and qualified.
 
-The immediate first code slice is deliberately narrower than model training:
+V1.1 now has a provisional model-scale decision:
 
 ```text
-Boolean mechanism AST
-→ semantic executor
-→ canonicalization
-→ exhaustive equivalence checker
-→ deterministic generator
-→ unit tests
+lower calibration model:  approximately 4.75M parameters
+primary model:            approximately 9.87M parameters
+upper calibration model: approximately 17.74M parameters
 ```
 
-Only after the generator and exact evaluator are trustworthy should model training begin.
+The primary implementation target is an eight-layer, width-320 decoder with five 64-dimensional attention heads. The final population scale will be the smallest candidate that reaches nontrivial but unsaturated hidden exact accuracy and useful functional disagreement across independently trained seeds.
+
+The immediate next code slice remains narrower than model training:
+
+```text
+compact symbolic vocabulary
+→ deterministic public-task codec
+→ canonical mechanism output codec
+→ exact parser and malformed-output rejection
+→ round-trip tests
+```
+
+Only after the codec is trustworthy should the three model scales be instantiated and benchmarked.
 
 ## One-sentence description
 
