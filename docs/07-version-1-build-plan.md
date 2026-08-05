@@ -147,19 +147,19 @@ A UNLESS B
 IF C THEN (A AND B) ELSE D
 ```
 
-The implementation should use a canonical abstract syntax tree rather than natural-language rules.
+The implementation uses a canonical abstract syntax tree rather than natural-language rules.
 
-Provisional limits:
+Initial qualification limits:
 
 ```text
-input variables:       6–10
-expression depth:      2–4
+input variables:       6
+expression depth:      2–5
 atomic clauses:        2–5
 context branches:      at most 1 initially
 exceptions:            at most 1 initially
 ```
 
-The limits are preflight values, not permanent architectural commitments.
+The six-variable limit is now fixed for the 256-token V1.1 learning preflight. Ten-variable worlds require a later 384/512-token context ablation.
 
 ### 6.3 Evidence generation
 
@@ -224,7 +224,7 @@ Version 1 may be considered a successful first experiment before this replicatio
 
 ### 8.1 Model type
 
-Use a small decoder-only transformer with a custom symbolic vocabulary.
+Use a small decoder-only transformer with the qualified custom symbolic vocabulary.
 
 Reasons:
 
@@ -234,16 +234,44 @@ Reasons:
 - inexpensive independent training;
 - direct comparison between different-weight and same-weight populations.
 
-### 8.2 Parameter preflight
+### 8.2 Qualified codec contract
 
-Do not select the final parameter count by intuition alone.
-
-Run three scales:
+The V1.1 codec is now fixed:
 
 ```text
-Tiny:    approximately 4–6 million parameters
-Small:   approximately 8–12 million parameters
-Medium:  approximately 14–20 million parameters
+vocabulary:                  75 tokens
+unknown token:               none
+initial full causal context: 256 tokens
+initial variables:           6
+prompt representation:       public evidence only
+answer representation:       canonical prefix mechanism grammar
+loss mask:                   answer tokens and final EOS only
+```
+
+The codec removes opaque task and case identifiers while preserving assignments, outputs, interventions, and variable structure.
+
+It rejects:
+
+- unknown token IDs;
+- malformed or truncated task sequences;
+- trailing tokens;
+- invalid intervention references;
+- interventions that change the wrong variable;
+- inconsistent intervention output metadata;
+- invalid mechanism arity;
+- excessive mechanism depth or node count;
+- variables outside the current task.
+
+See `docs/09-v1.1-symbolic-codec.md`.
+
+### 8.3 Parameter preflight
+
+The qualified vocabulary produces these exact configurations:
+
+```text
+PC-4M:   6 layers, width 256, 4 heads,  4,741,120 parameters
+PC-10M:  8 layers, width 320, 5 heads,  9,859,840 parameters
+PC-18M: 10 layers, width 384, 6 heads, 17,731,584 parameters
 ```
 
 Choose the smallest scale whose individual exact semantic accuracy is nontrivial but not saturated.
@@ -259,41 +287,155 @@ Interpretation:
 - below the range: individual minds may be too weak to contribute meaningful structure;
 - above the range: the task may be too easy to reveal synthesis gain.
 
-## 9. V1.0 qualification result
+## 9. Population size
 
-V1.0 is complete and qualified on exact head:
+Initial population:
 
 ```text
-9817579970a5ca6d1da77be3227eb5ae4f007e09
+N = 4 independently trained checkpoints
 ```
 
-Implemented and verified:
+Later ablations:
 
-- immutable Boolean mechanism AST;
-- fail-closed semantic execution;
-- deterministic structural normalization;
-- exhaustive equivalence, semantic distance, and counterexample discovery;
-- seeded bounded mechanism generation;
-- semantically deduplicated bounded catalogs;
-- deterministic positive, negative, boundary-intervention, and stable-intervention evidence;
-- public task payloads with no target, catalog, or hidden evaluator state;
-- separate hidden exhaustive evaluation;
-- rejection of catalog-relative ambiguous tasks;
-- hidden assignments retained for qualification;
-- 20 deterministic tests;
-- green GitHub Actions CI.
+```text
+N = 2
+N = 8
+```
 
-This establishes the benchmark and evaluator trust boundary only. It makes no plural-cognition claim.
+Population size is not increased until the four-member experiment shows interpretable functional diversity.
 
-## 10. V1.1 next gate
+## 10. Member output
 
-The next implementation must proceed in this order:
+Each member produces a constrained mechanism answer, followed later by a structured hypothesis packet containing:
 
-1. compact symbolic tokenizer;
-2. deterministic public-task codec;
-3. canonical mechanism output codec and parser;
-4. round-trip and malformed-output tests;
-5. only then, the decoder transformer;
-6. only then, training and exact evaluation loops.
+```text
+provisional mechanism
+claims
+supporting evidence
+counterexamples
+uncertainties
+predictions
+confidence
+```
 
-The model must not be introduced before the codec is deterministic and lossless.
+V1.1 begins with exact mechanism generation only. Richer hypothesis packets belong to V1.2 after one-member learning is calibrated.
+
+## 11. Synthesis boundary
+
+V1 uses a deterministic, provenance-preserving synthesis engine before testing a learned synthesizer.
+
+The synthesizer may:
+
+- canonicalize equivalent claims;
+- preserve unique valid fragments;
+- detect contradictions;
+- combine clauses proposed by different members;
+- attach boundary conditions or exceptions;
+- test candidates against visible evidence.
+
+It may not:
+
+- read hidden ground truth;
+- enumerate the complete answer space;
+- invent unrestricted atoms no member proposed;
+- use an unrestricted model judge;
+- erase provenance.
+
+## 12. Required systems
+
+```text
+B — different-weight structured synthesis
+C — same-weight structured synthesis
+D1 — majority vote
+D2 — best-of-N
+D3 — ordinary debate
+E — no-synthesis ablation
+F — equal-budget extra sampling from one model
+A — larger monolithic model, added after the first signal
+```
+
+All primary comparisons must match trajectories, generated tokens, visible evidence, verifier calls, and inference compute as closely as possible.
+
+## 13. Build order
+
+### V1.0 — exact world
+
+Qualified:
+
+- Boolean AST;
+- semantic executor;
+- canonicalization;
+- exhaustive equivalence;
+- deterministic generation;
+- evidence and interventions;
+- public/hidden separation;
+- ambiguity rejection;
+- deterministic tests.
+
+### V1.1a — symbolic codec
+
+Qualified:
+
+- fixed 75-token vocabulary;
+- public-task semantic round trip;
+- canonical mechanism codec;
+- malformed-output rejection;
+- causal prompt-plus-answer sequence;
+- answer-only label mask;
+- six-variable 256-token context gate.
+
+### V1.1b — decoder and one-member preflight
+
+Next:
+
+1. implement shared decoder configuration;
+2. instantiate PC-4M, PC-10M, and PC-18M;
+3. assert exact parameter counts;
+4. run deterministic CPU forward/backward smoke tests;
+5. run target-GPU throughput and peak-memory sweeps;
+6. train short learning curves;
+7. select the smallest unsaturated scale.
+
+### V1.2 — independent population
+
+- train four independent checkpoints;
+- implement the cloned same-weight control;
+- create immutable member packets;
+- measure functional diversity.
+
+### V1.3 — structured synthesis
+
+- implement the canonical claim workspace;
+- preserve full provenance;
+- detect contradictions and compatibility;
+- implement bounded composition;
+- perform source-removal ablations.
+
+### V1.4 — controlled experiment
+
+Run B, C, D, E, and F under matched budgets.
+
+### V1.5 — qualification
+
+Repeat across independently trained populations, held-out compositions, adversarial shortcut tasks, the larger monolithic control, and eventually a second task family.
+
+## 14. Qualification threshold
+
+A strong-result standard requires:
+
+- at least a five-percentage-point gain over the strongest simpler baseline;
+- paired 95% bootstrap interval above zero;
+- better performance than same-weight synthesis, best-of-N, and no synthesis;
+- reproduction across independent populations;
+- success on held-out rule compositions;
+- traceable novel synthesis;
+- source-removal evidence that multiple members were necessary;
+- persistence under matched token, trajectory, and verification budgets.
+
+The exact thresholds will be frozen after learning preflight and before final hidden evaluation.
+
+## 15. Gate
+
+Do not begin dynamic allocation, learned communication, recursive evolution, or heterogeneous architectures unless Version 1 shows reproducible, traceable, compute-controlled synthesis gain.
+
+The immediate next implementation is the three decoder configurations and their exact CPU qualification. No GPU throughput or learning claim should be made until the target RTX 4060 Ti run is executed.
