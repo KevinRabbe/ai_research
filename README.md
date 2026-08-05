@@ -27,14 +27,17 @@ This is not ordinary majority voting, best-of-N selection, or conversational deb
 
 ## First falsifiable milestone
 
-Version 0 must test whether a small population of structurally identical models with independently learned weights can outperform:
+The Version 0 specification defines the scientific protocol. Version 1 is the first runnable implementation.
+
+Version 1 must test whether a small population of structurally identical models with independently learned weights can outperform:
 
 - its strongest individual member;
 - same-weight copies using the same coordination machinery;
 - different-weight majority voting;
 - best-of-N selection;
 - ordinary debate;
-- a no-synthesis ablation.
+- a no-synthesis ablation;
+- an equal-budget extra-sampling control.
 
 The architecture earns additional scale only if it demonstrates reproducible synthesis gain under matched compute and controlled evaluation.
 
@@ -54,15 +57,29 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/00-research-charter.md`](docs/00-research-charter.md) — mission, non-goals, claims, and invariants
 - [`docs/01-theory-of-plural-cognition.md`](docs/01-theory-of-plural-cognition.md) — different internal worlds, shared structure, and collective synthesis
 - [`docs/02-population-cognitive-engine.md`](docs/02-population-cognitive-engine.md) — proposed seed architecture
-- [`docs/03-version-0-experiment.md`](docs/03-version-0-experiment.md) — first falsifiable experiment and controls
+- [`docs/03-version-0-experiment.md`](docs/03-version-0-experiment.md) — scientific protocol and falsification boundary
 - [`docs/04-open-ended-self-improvement.md`](docs/04-open-ended-self-improvement.md) — recursive collective improvement across time
 - [`docs/05-evolutionary-constitution.md`](docs/05-evolutionary-constitution.md) — rules that permit architectural freedom without trusting unverified changes
 - [`docs/06-roadmap.md`](docs/06-roadmap.md) — gated research sequence
+- [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, model preflight, task design, controls, metrics, and build order
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
 
-The repository currently defines the research program. No empirical claim has yet been established. Version 0 must remain small, repeatable, and cheap enough to run across many seeds, tasks, controls, and failed designs.
+The repository currently defines the research program and the Version 1 implementation plan. No empirical capability claim has yet been established.
+
+The immediate first code slice is deliberately narrower than model training:
+
+```text
+Boolean mechanism AST
+→ semantic executor
+→ canonicalization
+→ exhaustive equivalence checker
+→ deterministic generator
+→ unit tests
+```
+
+Only after the generator and exact evaluator are trustworthy should model training begin.
 
 ## One-sentence description
 
