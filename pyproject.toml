@@ -11,6 +11,9 @@ requires-python = ">=3.11"
 authors = [{ name = "Kevin Rabbe" }]
 dependencies = []
 
+[project.scripts]
+plural-cognition-cuda-preflight = "plural_cognition.cuda_preflight:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
