@@ -61,35 +61,27 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/04-open-ended-self-improvement.md`](docs/04-open-ended-self-improvement.md) — recursive collective improvement across time
 - [`docs/05-evolutionary-constitution.md`](docs/05-evolutionary-constitution.md) — rules that permit architectural freedom without trusting unverified changes
 - [`docs/06-roadmap.md`](docs/06-roadmap.md) — gated research sequence
-- [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, task design, controls, metrics, and build order
-- [`docs/08-v1.1-model-scale-selection.md`](docs/08-v1.1-model-scale-selection.md) — RTX 4060 Ti model candidates, preflight protocol, and selection rule
+- [`docs/07-version-1-build-plan.md`](docs/07-version-1-build-plan.md) — first runnable experiment, model preflight, task design, controls, metrics, and build order
+- [`docs/08-v1.1-model-scale-selection.md`](docs/08-v1.1-model-scale-selection.md) — hardware-aware model brackets and selection protocol
+- [`docs/09-v1.1-symbolic-codec.md`](docs/09-v1.1-symbolic-codec.md) — qualified 75-token grammar, causal sequence contract, and context boundary
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
 
-V1.0—the deterministic Boolean world and hidden exact evaluator—is implemented and qualified.
+V1.0 is qualified: the repository contains the exact Boolean world, public evidence boundary, ambiguity rejection, and hidden exhaustive evaluator.
 
-V1.1 now has a provisional model-scale decision:
-
-```text
-lower calibration model:  approximately 4.75M parameters
-primary model:            approximately 9.87M parameters
-upper calibration model: approximately 17.74M parameters
-```
-
-The primary implementation target is an eight-layer, width-320 decoder with five 64-dimensional attention heads. The final population scale will be the smallest candidate that reaches nontrivial but unsaturated hidden exact accuracy and useful functional disagreement across independently trained seeds.
-
-The immediate next code slice remains narrower than model training:
+The first V1.1 trust boundary is also qualified:
 
 ```text
-compact symbolic vocabulary
-→ deterministic public-task codec
-→ canonical mechanism output codec
-→ exact parser and malformed-output rejection
-→ round-trip tests
+fixed symbolic vocabulary: 75 tokens
+initial variables:          6
+full causal context:        256 tokens
+public task codec:          deterministic and lossless for model-visible semantics
+mechanism parser:           strict and fail-closed
+causal label mask:          answer tokens only
 ```
 
-Only after the codec is trustworthy should the three model scales be instantiated and benchmarked.
+No empirical model capability or plural-cognition claim has yet been established. The next slice is the decoder implementation and exact parameter-count/CPU forward-backward qualification.
 
 ## One-sentence description
 
