@@ -2,7 +2,15 @@
 
 from .ast import And, Const, Expr, Ite, Not, Or, Var, depth, node_count, variables
 from .canonical import canonical_text, normalize, structural_key
+from .catalog import CatalogEntry, MechanismCatalog, build_catalog
 from .generator import GenerationConfig, generate_mechanism
+from .qualification import (
+    AmbiguousTaskError,
+    EvidenceConfig,
+    HiddenEvaluation,
+    QualificationTask,
+    build_qualification_task,
+)
 from .semantics import (
     EquivalenceResult,
     evaluate,
@@ -12,8 +20,19 @@ from .semantics import (
     semantic_key,
     truth_table,
 )
+from .world import (
+    Assignment,
+    EvidenceCase,
+    InterventionCase,
+    PublicTask,
+    VisibleEvaluation,
+    assignment_mapping,
+    evaluate_visible,
+)
 
 __all__ = [
+    "AmbiguousTaskError",
+    "Assignment",
     "And",
     "Const",
     "EquivalenceResult",
@@ -23,6 +42,19 @@ __all__ = [
     "Not",
     "Or",
     "Var",
+    "CatalogEntry",
+    "EvidenceCase",
+    "EvidenceConfig",
+    "HiddenEvaluation",
+    "InterventionCase",
+    "MechanismCatalog",
+    "PublicTask",
+    "QualificationTask",
+    "VisibleEvaluation",
+    "assignment_mapping",
+    "build_catalog",
+    "build_qualification_task",
+    "evaluate_visible",
     "canonical_text",
     "depth",
     "evaluate",
