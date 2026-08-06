@@ -66,13 +66,14 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/09-v1.1-symbolic-codec.md`](docs/09-v1.1-symbolic-codec.md) — qualified symbolic grammar, context boundary, and decoder CPU contract
 - [`docs/10-v1.1-cuda-preflight.md`](docs/10-v1.1-cuda-preflight.md) — exact RTX 4060 Ti throughput and memory procedure
 - [`docs/11-reasoning-mathematics-and-search-design.md`](docs/11-reasoning-mathematics-and-search-design.md) — proof-carrying fragments, hypothesis graphs, semantic diversity, exact contribution attribution, and research-derived synthesis design
+- [`docs/12-v1.2-cpu-population-foundation.md`](docs/12-v1.2-cpu-population-foundation.md) — qualified packet, graph, verification, contribution, and bounded synthesis contracts
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
 
 V1.0 is qualified: the repository contains the exact Boolean world, public evidence boundary, ambiguity rejection, and hidden exhaustive evaluator.
 
-V1.1 now contains:
+V1.1 contains:
 
 ```text
 fixed symbolic vocabulary: 75 tokens
@@ -87,18 +88,21 @@ CPU smoke:                  forward/backward implemented for all three
 CUDA preflight runner:      deterministic 30-case default sweep and atomic JSON
 ```
 
-The population design now has a research-backed next stage:
+The first V1.2 CPU population foundation is also qualified:
 
 ```text
-immutable proof-carrying member packets
-→ semantic diversity measurement
-→ provenance-preserving hypothesis graph
-→ bounded symbolic composition
-→ exact visible verification
-→ leave-one-out and exact four-member Shapley attribution
+canonical member packets:   strict decode, complete task binding, SHA-256
+semantic diversity:         exact truth-table distance and error correlation
+cooperative credit:         all 16 four-member coalitions and exact Shapley values
+provenance graph:            typed nodes, typed/hyperedges, semantic merging
+proof auditing:              visible support, contradiction, prediction, counterexample checks
+bounded synthesis:           member-proposed operators, exact deduplication, hard limits
+qualification:               87 tests green on CI run 136
 ```
 
-No empirical learning capability, GPU throughput, or plural-cognition claim has yet been established. The next external qualification is the exact target-machine CUDA sweep on the RTX 4060 Ti when the GPU is free. GPU-independent work can continue on manifests, deterministic data streams, hypothesis packets, graph schemas, semantic metrics, and bounded synthesis.
+A constructed infrastructure case confirms that the synthesizer can combine multi-source fragments into a visibly exact semantic result absent from every initial complete candidate. This is not evidence that trained models will produce such fragments reliably.
+
+No empirical model-learning capability, target-machine GPU throughput, or plural-cognition gain has yet been established. The next external qualification is the exact RTX 4060 Ti sweep when the GPU is free. The next scientific qualification requires one-member learning curves, independently trained populations, learned packets, hidden exact evaluation, and matched controls.
 
 ## Commands
 
