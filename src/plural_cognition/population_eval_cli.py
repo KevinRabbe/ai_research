@@ -18,7 +18,6 @@ from .boolean_world import (
 )
 from .manifest_io import read_canonical_json, write_canonical_json
 from .population import (
-    AblationMode,
     MemberCandidate,
     QualificationDecision,
     SynthesisConfig,
@@ -32,6 +31,39 @@ from .validation import decode_supervised_causal_example
 
 class PopulationEvaluationError(ValueError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class FixedGenerationProtocol:
+    mode: str
+    sampling_seed: int | None
+    temperature: float | None
+    top_k: int | None
+
+    def __post_init__(self) -> None:
+        if self.mode == "greedy":
+            if any(
+                value is not None
+                for value in (self.sampling_seed, self.temperature, self.top_k)
+            ):
+                raise ValueError("greedy generation protocol must not contain sampling values")
+            return
+        if self.mode != "sampled":
+            raise ValueError(f"unsupported generation mode: {self.mode!r}")
+        if type(self.sampling_seed) is not int:
+            raise TypeError("sampled generation requires an integer sampling_seed")
+        if type(self.temperature) not in (int, float) or self.temperature <= 0:
+            raise ValueError("sampled generation requires a positive temperature")
+        if self.top_k is not None and (type(self.top_k) is not int or self.top_k < 1):
+            raise ValueError("sampled generation top_k must be positive when supplied")
+
+    def payload(self) -> dict:
+        return {
+            "mode": self.mode,
+            "sampling_seed": self.sampling_seed,
+            "temperature": self.temperature,
+            "top_k": self.top_k,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +81,9 @@ class FixedMemberEvaluation:
     cases: tuple[FixedMemberCase, ...]
     execution_sha256: str
     checkpoint_sha256: str
+    generation: FixedGenerationProtocol = FixedGenerationProtocol(
+        "greedy", None, None, None
+    )
 
 
 def _hex(value: Any, length: int, field: str) -> str:
@@ -59,6 +94,21 @@ def _hex(value: Any, length: int, field: str) -> str:
     except ValueError as exc:
         raise PopulationEvaluationError(f"{field} is not hexadecimal") from exc
     return value
+
+
+def _generation_protocol(payload: Any) -> FixedGenerationProtocol:
+    expected = {"mode", "sampling_seed", "temperature", "top_k"}
+    if not isinstance(payload, dict) or set(payload) != expected:
+        raise PopulationEvaluationError("member generation protocol has wrong fields")
+    try:
+        return FixedGenerationProtocol(
+            payload["mode"],
+            payload["sampling_seed"],
+            payload["temperature"],
+            payload["top_k"],
+        )
+    except (TypeError, ValueError) as exc:
+        raise PopulationEvaluationError("invalid member generation protocol") from exc
 
 
 def read_fixed_member_evaluation(
@@ -73,6 +123,7 @@ def read_fixed_member_evaluation(
         "execution_sha256",
         "checkpoint_sha256",
         "validation_shard_manifest_sha256s",
+        "generation",
         "case_count",
         "parse_rate",
         "exact_accuracy",
@@ -86,6 +137,7 @@ def read_fixed_member_evaluation(
         raise PopulationEvaluationError("unsupported member evaluation schema")
     execution_sha = _hex(payload["execution_sha256"], 64, "execution_sha256")
     checkpoint_sha = _hex(payload["checkpoint_sha256"], 64, "checkpoint_sha256")
+    generation = _generation_protocol(payload["generation"])
     shard_hashes_raw = payload["validation_shard_manifest_sha256s"]
     if not isinstance(shard_hashes_raw, list) or not shard_hashes_raw:
         raise PopulationEvaluationError("member evaluation has no validation shard identities")
@@ -130,6 +182,7 @@ def read_fixed_member_evaluation(
         tuple(cases),
         execution_sha,
         checkpoint_sha,
+        generation,
     )
 
 
@@ -153,6 +206,21 @@ def _qualification_from_example(example) -> QualificationTask:
         catalog,
         (),
     )
+
+
+def _population_type(evaluations: Sequence[FixedMemberEvaluation]) -> str:
+    checkpoints = {item.checkpoint_sha256 for item in evaluations}
+    modes = {item.generation.mode for item in evaluations}
+    if modes == {"greedy"} and len(checkpoints) == len(evaluations):
+        return "different-checkpoint-greedy"
+    if modes == {"sampled"} and len(checkpoints) == 1:
+        seeds = {item.generation.sampling_seed for item in evaluations}
+        if len(seeds) != len(evaluations):
+            raise PopulationEvaluationError(
+                "same-checkpoint sampled control requires unique sampling seeds"
+            )
+        return "same-checkpoint-sampled"
+    return "mixed"
 
 
 def _task_payload(case_index: int, report) -> dict:
@@ -225,6 +293,7 @@ def run_population_evaluation(
         raise PopulationEvaluationError("primary V1 population evaluation requires four members")
     if len({item.member_id for item in evaluations}) != len(evaluations):
         raise PopulationEvaluationError("population member IDs must be unique")
+    population_type = _population_type(evaluations)
     case_counts = {len(item.cases) for item in evaluations}
     if len(case_counts) != 1:
         raise PopulationEvaluationError("member evaluations have different case counts")
@@ -307,11 +376,13 @@ def run_population_evaluation(
 
     return {
         "schema": "plural-cognition-population-evaluation-v1",
+        "population_type": population_type,
         "members": [
             {
                 "member_id": item.member_id,
                 "execution_sha256": item.execution_sha256,
                 "checkpoint_sha256": item.checkpoint_sha256,
+                "generation": item.generation.payload(),
             }
             for item in sorted(evaluations, key=lambda item: item.member_id)
         ],
@@ -386,8 +457,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, TypeError, ValueError, RuntimeError) as exc:
         parser.exit(2, f"error: {exc}\n")
     print(
-        f"wrote {args.output} passed={payload['qualification']['passed']} "
-        f"cases={payload['case_count']}"
+        f"wrote {args.output} type={payload['population_type']} "
+        f"passed={payload['qualification']['passed']} cases={payload['case_count']}"
     )
     return 0
 
