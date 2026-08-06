@@ -31,6 +31,18 @@ from .policy import (
     ReasoningBudget,
     execute_reasoning_policy,
 )
+from .search import (
+    GenomeEvaluationRecord,
+    PromotionEvent,
+    SearchConfig,
+    SearchResult,
+    SearchStrategy,
+    SplitFitness,
+    enumerate_normalized_genomes,
+    run_quality_diverse_search,
+    run_random_search,
+    run_single_best_search,
+)
 
 __all__ = [
     "BehaviorDescriptor",
@@ -39,6 +51,7 @@ __all__ = [
     "FrozenCandidate",
     "FrozenCandidatePool",
     "GenerationSource",
+    "GenomeEvaluationRecord",
     "IMMUTABLE_PARENT_GENOME",
     "MutationRecord",
     "PolicyEvaluation",
@@ -46,12 +59,21 @@ __all__ = [
     "PolicyMode",
     "PolicyResourceTrace",
     "PolicyTaskScore",
+    "PromotionEvent",
     "ProposedMutation",
     "ReasoningBudget",
     "ReasoningPolicyGenome",
+    "SearchConfig",
+    "SearchResult",
+    "SearchStrategy",
+    "SplitFitness",
     "apply_mutation",
     "build_frozen_candidate_pool",
+    "enumerate_normalized_genomes",
     "evaluate_policy_on_split",
     "execute_reasoning_policy",
     "propose_neighbor_mutations",
+    "run_quality_diverse_search",
+    "run_random_search",
+    "run_single_best_search",
 ]
