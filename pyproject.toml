@@ -13,6 +13,9 @@ dependencies = []
 
 [project.scripts]
 plural-cognition-cuda-preflight = "plural_cognition.cuda_preflight:main"
+plural-cognition-resolve-screening = "plural_cognition.prepare_cli:resolve_screening_plan_main"
+plural-cognition-build-dataset = "plural_cognition.prepare_cli:build_dataset_shard_main"
+plural-cognition-prepare-execution = "plural_cognition.prepare_cli:prepare_execution_main"
 
 [project.optional-dependencies]
 dev = [
