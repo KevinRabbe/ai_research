@@ -23,11 +23,13 @@ def test_validation_payload_preserves_fixed_outputs_and_scores() -> None:
         evaluation,
         execution_sha256="a" * 64,
         checkpoint_sha256="b" * 64,
+        validation_shard_manifest_sha256s=("c" * 64,),
     )
 
     assert payload["schema"] == "plural-cognition-validation-evaluation-v1"
     assert payload["execution_sha256"] == "a" * 64
     assert payload["checkpoint_sha256"] == "b" * 64
+    assert payload["validation_shard_manifest_sha256s"] == ["c" * 64]
     assert payload["exact_accuracy"] == 1.0
     assert payload["cases"] == [
         {
