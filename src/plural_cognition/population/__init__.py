@@ -1,4 +1,4 @@
-"""Population packets, graphs, metrics, verification, and contribution analysis."""
+"""Population packets, graphs, synthesis, verification, and contribution analysis."""
 
 from .credit import (
     CoalitionEvaluation,
@@ -35,6 +35,15 @@ from .packet import (
     decode_validated_packet,
     validate_and_hash_packet,
 )
+from .synthesis import (
+    Derivation,
+    SynthesizedCandidate,
+    SynthesisConfig,
+    SynthesisResult,
+    SynthesisRule,
+    SynthesisTrace,
+    synthesize_visible,
+)
 from .verification import (
     FragmentVisibleAudit,
     PacketVisibleAudit,
@@ -44,6 +53,7 @@ from .verification import (
 __all__ = [
     "CoalitionEvaluation",
     "DecodedPacket",
+    "Derivation",
     "EdgeKind",
     "ErrorCorrelation",
     "EvidenceNode",
@@ -61,6 +71,11 @@ __all__ = [
     "PacketVisibleAudit",
     "ProvenanceGraph",
     "SourceRef",
+    "SynthesizedCandidate",
+    "SynthesisConfig",
+    "SynthesisResult",
+    "SynthesisRule",
+    "SynthesisTrace",
     "ValidatedPacket",
     "audit_visible_packet",
     "build_provenance_graph",
@@ -71,5 +86,6 @@ __all__ = [
     "leave_one_out_contributions",
     "pairwise_error_correlation",
     "semantic_distance_matrix",
+    "synthesize_visible",
     "validate_and_hash_packet",
 ]
