@@ -8,6 +8,12 @@ def _evaluation(exact: float) -> dict:
         "execution_sha256": "a" * 64,
         "checkpoint_sha256": "b" * 64,
         "validation_shard_manifest_sha256s": ["c" * 64],
+        "generation": {
+            "mode": "greedy",
+            "sampling_seed": None,
+            "temperature": None,
+            "top_k": None,
+        },
         "case_count": 1,
         "parse_rate": 1.0,
         "exact_accuracy": exact,
