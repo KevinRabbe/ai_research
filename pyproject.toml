@@ -19,6 +19,7 @@ plural-cognition-prepare-execution = "plural_cognition.prepare_cli:prepare_execu
 plural-cognition-prepare-screening-executions = "plural_cognition.prepare_cli:prepare_all_executions_main"
 plural-cognition-train = "plural_cognition.train_cli:main"
 plural-cognition-evaluate = "plural_cognition.evaluate_cli:main"
+plural-cognition-select-scale = "plural_cognition.select_scale_cli:main"
 plural-cognition-evaluate-population = "plural_cognition.population_eval_cli:main"
 
 [project.optional-dependencies]
