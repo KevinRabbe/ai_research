@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Collection
+
 from .ast import And, Const, Expr, Ite, Not, Or, Var
+
+_CANONICAL_RESERVED = frozenset({"TRUE", "FALSE", "NOT", "AND", "OR", "ITE"})
+
+
+class CanonicalParseError(ValueError):
+    """Raised when canonical Boolean text violates the exact grammar."""
 
 
 def structural_key(expr: Expr) -> tuple:
@@ -135,6 +144,20 @@ def normalize(expr: Expr) -> Expr:
             raise TypeError(f"unsupported expression type: {type(expr)!r}")
 
 
+def _validate_canonical_variable_name(name: str) -> None:
+    if not name:
+        raise ValueError("canonical variable name must not be empty")
+    if name in _CANONICAL_RESERVED:
+        raise ValueError(f"canonical variable name is reserved: {name!r}")
+    if not (name[0].isascii() and (name[0].isalpha() or name[0] == "_")):
+        raise ValueError(f"invalid canonical variable name: {name!r}")
+    if any(
+        not (character.isascii() and (character.isalnum() or character == "_"))
+        for character in name[1:]
+    ):
+        raise ValueError(f"invalid canonical variable name: {name!r}")
+
+
 def canonical_text(expr: Expr) -> str:
     """Serialize the normalized AST to an unambiguous deterministic string."""
 
@@ -147,6 +170,7 @@ def canonical_text(expr: Expr) -> str:
             case Const(value=False):
                 return "FALSE"
             case Var(name=name):
+                _validate_canonical_variable_name(name)
                 return name
             case Not(child=child):
                 return f"NOT({render(child)})"
@@ -160,3 +184,152 @@ def canonical_text(expr: Expr) -> str:
                 raise TypeError(f"unsupported expression type: {type(node)!r}")
 
     return render(normalized)
+
+
+@dataclass(slots=True)
+class _CanonicalReader:
+    text: str
+    max_nodes: int
+    max_depth: int
+    position: int = 0
+    nodes: int = 0
+
+    def _consume(self, literal: str) -> bool:
+        if self.text.startswith(literal, self.position):
+            self.position += len(literal)
+            return True
+        return False
+
+    def _expect(self, literal: str) -> None:
+        if not self._consume(literal):
+            found = self.text[self.position : self.position + max(1, len(literal))]
+            raise CanonicalParseError(
+                f"expected {literal!r} at position {self.position}, found {found!r}"
+            )
+
+    def _identifier(self) -> str:
+        start = self.position
+        if start >= len(self.text):
+            raise CanonicalParseError("unexpected end while reading variable")
+        first = self.text[start]
+        if not (first.isascii() and (first.isalpha() or first == "_")):
+            raise CanonicalParseError(
+                f"invalid variable start {first!r} at position {start}"
+            )
+        self.position += 1
+        while self.position < len(self.text):
+            character = self.text[self.position]
+            if not (
+                character.isascii() and (character.isalnum() or character == "_")
+            ):
+                break
+            self.position += 1
+        name = self.text[start : self.position]
+        try:
+            _validate_canonical_variable_name(name)
+        except ValueError as exc:
+            raise CanonicalParseError(str(exc)) from exc
+        return name
+
+    def parse(self, depth: int = 1) -> Expr:
+        self.nodes += 1
+        if self.nodes > self.max_nodes:
+            raise CanonicalParseError("canonical expression exceeds node limit")
+        if depth > self.max_depth:
+            raise CanonicalParseError("canonical expression exceeds depth limit")
+
+        if self._consume("TRUE"):
+            return Const(True)
+        if self._consume("FALSE"):
+            return Const(False)
+        if self._consume("NOT("):
+            child = self.parse(depth + 1)
+            self._expect(")")
+            return Not(child)
+        if self._consume("AND("):
+            children = self._parse_list(depth + 1)
+            return And(children)
+        if self._consume("OR("):
+            children = self._parse_list(depth + 1)
+            return Or(children)
+        if self._consume("ITE("):
+            condition = self.parse(depth + 1)
+            self._expect(",")
+            when_true = self.parse(depth + 1)
+            self._expect(",")
+            when_false = self.parse(depth + 1)
+            self._expect(")")
+            return Ite(condition, when_true, when_false)
+        return Var(self._identifier())
+
+    def _parse_list(self, depth: int) -> tuple[Expr, ...]:
+        if self.position >= len(self.text) or self.text[self.position] == ")":
+            raise CanonicalParseError("AND/OR requires at least one child")
+        children = [self.parse(depth)]
+        while self._consume(","):
+            children.append(self.parse(depth))
+        self._expect(")")
+        return tuple(children)
+
+
+def parse_canonical_text(
+    text: str,
+    *,
+    allowed_variables: Collection[str] | None = None,
+    max_nodes: int = 128,
+    max_depth: int = 16,
+    max_length: int = 4096,
+) -> Expr:
+    """Parse canonical text and reject every non-canonical equivalent spelling.
+
+    The round-trip check enforces normalization, stable child ordering, exact
+    punctuation, and the absence of trailing data.
+    """
+
+    if type(text) is not str:
+        raise TypeError("canonical expression must be a plain string")
+    if not text:
+        raise CanonicalParseError("canonical expression must not be empty")
+    if len(text) > max_length:
+        raise CanonicalParseError("canonical expression exceeds length limit")
+    if max_nodes < 1 or max_depth < 1:
+        raise ValueError("parser limits must be positive")
+
+    reader = _CanonicalReader(text, max_nodes, max_depth)
+    raw = reader.parse()
+    if reader.position != len(text):
+        raise CanonicalParseError(
+            f"trailing data at position {reader.position}: {text[reader.position:]!r}"
+        )
+
+    normalized = normalize(raw)
+    if allowed_variables is not None:
+        allowed = set(allowed_variables)
+        referenced: set[str] = set()
+
+        def collect(node: Expr) -> None:
+            match node:
+                case Var(name=name):
+                    referenced.add(name)
+                case Not(child=child):
+                    collect(child)
+                case And(children=children) | Or(children=children):
+                    for child in children:
+                        collect(child)
+                case Ite(condition=condition, when_true=when_true, when_false=when_false):
+                    collect(condition)
+                    collect(when_true)
+                    collect(when_false)
+                case Const():
+                    return
+
+        collect(normalized)
+        unknown = referenced.difference(allowed)
+        if unknown:
+            raise CanonicalParseError(
+                f"canonical expression uses variables outside task: {sorted(unknown)!r}"
+            )
+
+    if canonical_text(normalized) != text:
+        raise CanonicalParseError("expression is valid but not in canonical form")
+    return normalized
