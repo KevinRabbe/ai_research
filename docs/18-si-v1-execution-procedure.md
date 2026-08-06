@@ -6,10 +6,8 @@ This document defines the exact operational sequence for the first architectural
 
 The experiment is independent of the plural-cognition claim. It reuses one frozen Boolean-world checkpoint, but it does not require a positive plural-population result.
 
-The causal sequence is:
-
 ```text
-train one frozen checkpoint
+reuse one exact frozen checkpoint
 → generate immutable candidate paths without target access
 → freeze discovery, development, hidden, and shift pools
 → freeze genome, budgets, controls, and thresholds
@@ -20,11 +18,40 @@ train one frozen checkpoint
 → apply the multi-run qualification gate
 ```
 
-## 2. Exact-code requirement
+## 2. Two exact code identities
 
-CUDA preflight, checkpoint training, and target-free candidate generation must use the same Git commit.
+Checkpoint training and SI candidate generation are separate reproducibility boundaries.
 
-The SI branch is stacked on the complete plural-cognition harness, so the recommended execution checkout is:
+### Frozen checkpoint identity
+
+The checkpoint remains bound to its original:
+
+- training Git commit;
+- CUDA preflight hash;
+- execution manifest;
+- model configuration;
+- optimizer state;
+- dataset-shard hashes;
+- checkpoint binary SHA-256.
+
+The SI tooling does not weaken or rewrite that binding.
+
+### SI generation identity
+
+Candidate generation runs from the qualified SI branch. Every target-free generation artifact records:
+
+```text
+generation_git_commit
+execution_sha256
+checkpoint_sha256
+task-shard manifest hashes
+generation protocol
+generated token IDs
+```
+
+All paths in one candidate pool must use the same SI generation commit. This allows the exact selected V1 checkpoint to be reused without retraining it merely because the external reasoning experiment was implemented later.
+
+Prepare the SI checkout:
 
 ```powershell
 cd F:\ai_research
@@ -40,9 +67,7 @@ git rev-parse HEAD
 git status --short
 ```
 
-The working tree must be clean.
-
-Do not reuse a checkpoint whose execution manifest binds a different Git commit. The command rejects that combination.
+The SI working tree must be clean before candidate generation.
 
 ## 3. Frozen checkpoint
 
@@ -56,49 +81,38 @@ initialization seed 101
 final 10-million-token screening checkpoint
 ```
 
-This choice is fixed before SI candidate-pool results.
-
-Required paths are represented below as:
+Required paths:
 
 ```text
 <EXECUTION>  selected seed-101 execution manifest
-<PREFLIGHT>  measured CUDA preflight JSON
+<PREFLIGHT>  preflight JSON bound by that execution
 <CHECKPOINT> selected seed-101 final checkpoint
 ```
 
-The checkpoint is identical across all SI replications. Replications vary task seeds and candidate-sampling seeds.
+The same checkpoint is used in all SI replications. Replications vary task seeds and sampling seeds only.
 
 ## 4. Frozen run identities
 
-Run 1:
-
 ```text
-task base seed:       20260821
-shift base seed:      30260821
-candidate seeds:      401 402 403 404 405 406 407 408
-```
+Run 1
+  task base seed:  20260821
+  shift base seed: 30260821
+  candidate seeds: 401 402 403 404 405 406 407 408
 
-Run 2:
+Run 2
+  task base seed:  20260822
+  shift base seed: 30260822
+  candidate seeds: 501 502 503 504 505 506 507 508
 
-```text
-task base seed:       20260822
-shift base seed:      30260822
-candidate seeds:      501 502 503 504 505 506 507 508
-```
-
-Run 3:
-
-```text
-task base seed:       20260823
-shift base seed:      30260823
-candidate seeds:      601 602 603 604 605 606 607 608
+Run 3
+  task base seed:  20260823
+  shift base seed: 30260823
+  candidate seeds: 601 602 603 604 605 606 607 608
 ```
 
 Do not replace a failed run with a new seed after inspecting its result.
 
 ## 5. Task partitions per run
-
-Each run contains:
 
 ```text
 discovery:   256 standard validation tasks, indices 0–255
@@ -118,11 +132,9 @@ ITE probability:        0.35
 maximum causal tokens:  256
 ```
 
-This is deeper, denser, and more conditional than the standard training distribution.
-
 ## 6. Build one run’s task shards
 
-The following example is Run 1. Replace only the documented run seeds and root directory for Runs 2 and 3.
+Run 1 example:
 
 ```powershell
 $Run = "r1"
@@ -133,47 +145,37 @@ $Root = "artifacts\si\$Run"
 New-Item -ItemType Directory -Force "$Root\tasks" | Out-Null
 
 plural-cognition-si-build-tasks `
-    --split validation `
-    --profile standard `
-    --start-index 0 `
-    --example-count 256 `
+    --split validation --profile standard `
+    --start-index 0 --example-count 256 `
     --base-seed $TaskSeed `
     --output "$Root\tasks\discovery.jsonl" `
     --manifest "$Root\tasks\discovery.manifest.json"
 
 plural-cognition-si-build-tasks `
-    --split validation `
-    --profile standard `
-    --start-index 256 `
-    --example-count 256 `
+    --split validation --profile standard `
+    --start-index 256 --example-count 256 `
     --base-seed $TaskSeed `
     --output "$Root\tasks\development.jsonl" `
     --manifest "$Root\tasks\development.manifest.json"
 
 plural-cognition-si-build-tasks `
-    --split test `
-    --profile standard `
-    --start-index 0 `
-    --example-count 512 `
+    --split test --profile standard `
+    --start-index 0 --example-count 512 `
     --base-seed $TaskSeed `
     --output "$Root\tasks\hidden.jsonl" `
     --manifest "$Root\tasks\hidden.manifest.json"
 
 plural-cognition-si-build-tasks `
-    --split test `
-    --profile shift-v1 `
-    --start-index 0 `
-    --example-count 512 `
+    --split test --profile shift-v1 `
+    --start-index 0 --example-count 512 `
     --base-seed $ShiftSeed `
     --output "$Root\tasks\shift.jsonl" `
     --manifest "$Root\tasks\shift.manifest.json"
 ```
 
-Targets exist in these supervised shard files for later scoring, but target-free generation decodes only the public prefix before the answer boundary.
+The supervised shard retains targets for later scoring. Target-free generation decodes only the public prefix before the answer boundary.
 
-## 7. Dry-run target-free generation
-
-Validate every split before allocating CUDA state.
+## 7. Dry-run candidate generation
 
 ```powershell
 $Seeds = 401,402,403,404,405,406,407,408
@@ -184,71 +186,38 @@ plural-cognition-si-generate-pool `
     --checkpoint <CHECKPOINT> `
     --task-shard "$Root\tasks\discovery.jsonl" "$Root\tasks\discovery.manifest.json" `
     --sampling-seeds $Seeds `
-    --temperature 1.0 `
-    --top-k 8 `
-    --max-new-tokens 64 `
+    --temperature 1.0 --top-k 8 --max-new-tokens 64 `
     --artifact-dir "$Root\generation\discovery" `
     --pool-output "$Root\pools\discovery.json" `
     --dry-run
 ```
 
-Repeat the dry run for development, hidden, and shift.
+Repeat for development, hidden, and shift.
 
-The dry run verifies:
+The dry run verifies task contents, shard identities, checkpoint existence, ordered unique sampling seeds, and the current SI Git commit without loading CUDA state.
 
-- execution manifest;
-- task data and manifest contents;
-- sorted and contiguous shard ranges;
-- checkpoint path existence;
-- unique ordered sampling seeds.
-
-It does not load the model.
-
-## 8. Generate the four immutable pools
-
-Create directories:
+## 8. Generate immutable pools
 
 ```powershell
 New-Item -ItemType Directory -Force "$Root\generation" | Out-Null
 New-Item -ItemType Directory -Force "$Root\pools" | Out-Null
-```
 
-Discovery:
-
-```powershell
 plural-cognition-si-generate-pool `
     --execution <EXECUTION> `
     --preflight <PREFLIGHT> `
     --checkpoint <CHECKPOINT> `
     --task-shard "$Root\tasks\discovery.jsonl" "$Root\tasks\discovery.manifest.json" `
     --sampling-seeds $Seeds `
-    --temperature 1.0 `
-    --top-k 8 `
-    --max-new-tokens 64 `
+    --temperature 1.0 --top-k 8 --max-new-tokens 64 `
     --artifact-dir "$Root\generation\discovery" `
     --pool-output "$Root\pools\discovery.json"
 ```
 
-Repeat with the corresponding task files and output directories for:
+Repeat with the corresponding task file and output path for development, hidden, and shift.
 
-```text
-development
-hidden
-shift
-```
+Each command loads the checkpoint once and writes eight target-free path artifacts plus one content-addressed pool. The artifacts contain no target expression or accuracy score.
 
-Each command:
-
-1. verifies the complete task shard;
-2. verifies exact commit, preflight hash, GPU, execution, and checkpoint;
-3. loads the checkpoint once;
-4. generates all eight paths;
-5. writes one canonical target-free artifact per sampling seed;
-6. writes one canonical content-addressed candidate pool.
-
-The generation artifacts contain no target expression, hidden score, exact score, or semantic score.
-
-## 9. Freeze the complete experiment
+## 9. Freeze the experiment
 
 ```powershell
 New-Item -ItemType Directory -Force "$Root\experiment" | Out-Null
@@ -272,20 +241,6 @@ plural-cognition-si-prepare `
     --output "$Root\experiment\manifest.json"
 ```
 
-This freezes:
-
-- all four candidate-pool hashes;
-- task-shard hashes and counts;
-- checkpoint and execution identities;
-- all eight generation protocols;
-- immutable parent;
-- fixed verified-synthesis policy;
-- genome-evaluation budget;
-- archive capacity;
-- per-task reasoning ceiling;
-- bootstrap and shuffled-label seeds;
-- minimum hidden gain.
-
 Do not edit the manifest after search starts.
 
 ## 10. Run discovery/development search on CPU
@@ -303,23 +258,11 @@ plural-cognition-si-search `
     --finalists-output "$Root\search\finalists.json"
 ```
 
-The search command has no hidden or shift file arguments.
+The command has no hidden or shift inputs. It runs the immutable parent, single-best lineage, quality-diverse archive, equal-budget random search, and shuffled-label archive, then freezes the eight finalist roles.
 
-It runs:
+## 11. Open hidden and shift targets
 
-- immutable parent replay;
-- single-best lineage;
-- quality-diverse archive;
-- equal-budget random genome search;
-- shuffled-label quality-diverse search.
-
-Target-free packets are prepared once per task. Deterministic genome fitness is cached across normal strategies, but each strategy retains its full logical genome-evaluation count.
-
-The command writes a separate physical finalist manifest. Hidden opening requires that exact file.
-
-## 11. Open hidden and shift results
-
-Only after the search command has completed and `finalists.json` exists:
+Only after `finalists.json` exists:
 
 ```powershell
 New-Item -ItemType Directory -Force "$Root\results" | Out-Null
@@ -335,57 +278,36 @@ plural-cognition-si-open-hidden `
     --output "$Root\results\hidden-opening.json"
 ```
 
-The command rejects:
-
-- changed experiment manifest;
-- changed search phase;
-- finalist file not matching the embedded finalist hash;
-- changed hidden or shift pool;
-- changed task-shard identity or contents;
-- finalists not produced by the frozen searches.
-
-The predeclared primary is the archive development champion. No new champion is selected after hidden scores appear.
+The physical finalist file must exactly match the finalist hash embedded in the search phase. The predeclared primary is the archive development champion; hidden results cannot select a replacement.
 
 ## 12. Single-run gate
 
-A run passes only when the archive champion:
+The archive champion must:
 
-1. gains at least 5 percentage points in hidden semantic accuracy over the immutable parent;
-2. has a paired 95% bootstrap lower bound above zero;
-3. improves the shift split;
-4. beats the equal-budget random-search champion;
-5. remains under the 1,024-operation per-task ceiling;
-6. beats the shuffled-label champion.
-
-The report also contains:
-
-- all eight finalist evaluations;
-- task-level outputs and scores;
-- win/tie/loss counts;
-- exact-accuracy gain;
-- immediate archive-parent reversion when available;
-- hidden and shift compute;
-- canonical hashes.
+1. gain at least 5 percentage points in hidden semantic accuracy;
+2. have a paired 95% lower bound above zero;
+3. improve the shift split;
+4. beat equal-budget random search;
+5. remain below 1,024 reasoning operations per task;
+6. beat the shuffled-label champion.
 
 ## 13. Repeat Runs 2 and 3
 
-Repeat Sections 6–12 exactly with:
-
 ```text
-Run 2 root:             artifacts\si\r2
-Task seed:              20260822
-Shift seed:             30260822
-Candidate seeds:        501–508
+Run 2 root:      artifacts\si\r2
+Task seed:       20260822
+Shift seed:      30260822
+Candidate seeds: 501–508
 
-Run 3 root:             artifacts\si\r3
-Task seed:              20260823
-Shift seed:             30260823
-Candidate seeds:        601–608
+Run 3 root:      artifacts\si\r3
+Task seed:       20260823
+Shift seed:      30260823
+Candidate seeds: 601–608
 ```
 
-Keep all failed, invalid, and inconclusive artifacts.
+Preserve failed and inconclusive runs.
 
-## 14. Apply the three-run strong qualification
+## 14. Apply the strong three-run gate
 
 ```powershell
 plural-cognition-si-qualify `
@@ -399,34 +321,15 @@ plural-cognition-si-qualify `
     --output artifacts\si\qualification.json
 ```
 
-The strong gate requires:
+The strong gate requires distinct experiment and split-pool hashes, all single-run gates passing, positive individual hidden lower bounds, positive run-level and pooled-task lower bounds, and positive shift gain in every run.
 
-- three distinct experiment hashes;
-- independent four-split candidate-pool hash vectors;
-- every single-run gate passing;
-- mean hidden gain at least 5 percentage points;
-- every run’s hidden interval lower bound above zero;
-- run-level bootstrap lower bound above zero;
-- pooled-task bootstrap lower bound above zero;
-- positive shift gain in every run.
+## 15. Claim boundary
 
-## 15. Interpretation boundary
+A passing result supports only bounded frozen-weight improvement of an external reasoning policy under exact candidate pools and resource ceilings. It does not establish unrestricted recursive self-improvement, neural-weight evolution, AGI, or ASI.
 
-A passing three-run artifact supports only:
+## 16. Preserve every artifact
 
-> Under frozen neural weights, frozen proposal pools, fixed public tasks, fixed reasoning ceilings, and a hidden-evaluator firewall, the bounded evolutionary process repeatedly discovered an external reasoning-policy descendant that generalized better than its immutable parent and matched controls.
-
-It does not establish:
-
-- neural-weight self-improvement;
-- unrestricted source-code self-modification;
-- recursive open-ended improvement;
-- autonomous deployment safety;
-- AGI or ASI.
-
-## 16. Artifact preservation
-
-Preserve for every run:
+For each run preserve:
 
 ```text
 task JSONL files and manifests
@@ -435,8 +338,8 @@ four candidate pools
 experiment manifest
 complete search phase
 physical finalist manifest
-hidden-opening result
-all failures and command logs
+hidden-opening report
+command logs and failures
 ```
 
-Never overwrite a completed run. A rerun uses a new directory and remains linked to its exact hashes.
+Never overwrite a completed run.
