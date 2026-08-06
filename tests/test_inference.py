@@ -13,6 +13,7 @@ from plural_cognition.boolean_world import (
     Var,
     canonical_text,
     encode_mechanism,
+    encode_tokens,
     semantic_key,
 )
 from plural_cognition.boolean_world.qualification import QualificationTask
@@ -20,6 +21,7 @@ from plural_cognition.inference import (
     encode_inference_prompt,
     evaluate_checkpoint,
     greedy_generate_mechanism,
+    sample_generate_mechanism,
 )
 from plural_cognition.boolean_world.codec import EOS_ID, PAD_ID, VOCAB_SIZE
 
@@ -37,6 +39,28 @@ class _ScriptedModel(nn.Module):
         token = self.planned[min(step, len(self.planned) - 1)]
         logits = torch.full((batch, sequence, VOCAB_SIZE), -1000.0)
         logits[:, -1, token] = 1000.0
+        return logits
+
+
+class _TwoPathModel(nn.Module):
+    def __init__(self, start_length: int):
+        super().__init__()
+        self.start_length = start_length
+        self.config = SimpleNamespace(max_seq_len=256)
+        self.first_tokens = (
+            encode_tokens(("V0",))[0],
+            encode_tokens(("<TRUE>",))[0],
+        )
+
+    def forward(self, input_ids, attention_mask=None):
+        batch, sequence = input_ids.shape
+        step = sequence - self.start_length
+        logits = torch.full((batch, sequence, VOCAB_SIZE), -1000.0)
+        if step == 0:
+            for token in self.first_tokens:
+                logits[:, -1, token] = 0.0
+        else:
+            logits[:, -1, EOS_ID] = 1000.0
         return logits
 
 
@@ -85,6 +109,48 @@ def test_greedy_generation_parses_canonical_mechanism() -> None:
     assert result.valid is True
     assert result.expression == Var("V0")
     assert result.generated_token_ids[-1] == EOS_ID
+
+
+def test_seeded_sampling_is_reproducible() -> None:
+    task = _public()
+    prompt = encode_inference_prompt(task)
+    model = _TwoPathModel(len(prompt))
+
+    first = sample_generate_mechanism(
+        model,
+        task,
+        device=torch.device("cpu"),
+        seed=77,
+    )
+    second = sample_generate_mechanism(
+        model,
+        task,
+        device=torch.device("cpu"),
+        seed=77,
+    )
+
+    assert first == second
+    assert first.valid is True
+
+
+def test_sampling_rejects_invalid_temperature_and_top_k() -> None:
+    model = _TwoPathModel(len(encode_inference_prompt(_public())))
+    with pytest.raises(ValueError, match="temperature"):
+        sample_generate_mechanism(
+            model,
+            _public(),
+            device=torch.device("cpu"),
+            seed=1,
+            temperature=0.0,
+        )
+    with pytest.raises(ValueError, match="top_k"):
+        sample_generate_mechanism(
+            model,
+            _public(),
+            device=torch.device("cpu"),
+            seed=1,
+            top_k=0,
+        )
 
 
 def test_generation_fails_closed_on_malformed_answer() -> None:
