@@ -7,10 +7,26 @@ from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
 from math import isfinite
+from typing import Any, Iterable
 
 from plural_cognition.boolean_world.ast import Expr, variables
-from plural_cognition.boolean_world.canonical import canonical_text
-from plural_cognition.boolean_world.world import PublicTask
+from plural_cognition.boolean_world.canonical import (
+    CanonicalParseError,
+    canonical_text,
+    parse_canonical_text,
+)
+from plural_cognition.boolean_world.world import (
+    EvidenceCase,
+    InterventionCase,
+    PublicTask,
+)
+
+PACKET_SCHEMA = "plural-cognition-hypothesis-packet-v1"
+MAX_PACKET_BYTES = 1_048_576
+
+
+class PacketDecodeError(ValueError):
+    """Raised when serialized hypothesis-packet data violates the exact schema."""
 
 
 class FragmentRole(str, Enum):
@@ -95,6 +111,12 @@ class ValidatedPacket:
     canonical_bytes: bytes
 
 
+@dataclass(frozen=True, slots=True)
+class DecodedPacket:
+    task: PublicTask
+    validated: ValidatedPacket
+
+
 def _validate_unique_nonempty(values: tuple[str, ...], field: str) -> None:
     if any(not value for value in values):
         raise ValueError(f"{field} must not contain empty strings")
@@ -110,7 +132,7 @@ def _validate_expression_variables(
         raise ValueError(f"{field} references out-of-task variables: {sorted(unknown)!r}")
 
 
-def _canonical_task_payload(task: PublicTask) -> dict:
+def _canonical_task_payload(task: PublicTask) -> dict[str, Any]:
     return {
         "task_id": task.task_id,
         "variable_order": list(task.variable_order),
@@ -137,7 +159,7 @@ def _canonical_task_payload(task: PublicTask) -> dict:
     }
 
 
-def _canonical_payload(packet: HypothesisPacket, task: PublicTask) -> dict:
+def _canonical_payload(packet: HypothesisPacket, task: PublicTask) -> dict[str, Any]:
     fragments = []
     for fragment in sorted(packet.fragments, key=lambda item: item.fragment_id):
         fragments.append(
@@ -158,7 +180,7 @@ def _canonical_payload(packet: HypothesisPacket, task: PublicTask) -> dict:
         )
 
     return {
-        "schema": "plural-cognition-hypothesis-packet-v1",
+        "schema": PACKET_SCHEMA,
         "task": _canonical_task_payload(task),
         "member_id": packet.member_id,
         "complete_candidate": canonical_text(packet.complete_candidate),
@@ -217,3 +239,318 @@ def validate_and_hash_packet(
     ).encode("ascii")
     digest = sha256(canonical_bytes).hexdigest()
     return ValidatedPacket(packet, task.task_id, digest, canonical_bytes)
+
+
+def _reject_duplicate_object_keys(pairs: Iterable[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise PacketDecodeError(f"duplicate JSON object key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise PacketDecodeError(f"non-finite JSON constant is prohibited: {value}")
+
+
+def _mapping(value: Any, field: str, keys: set[str]) -> dict[str, Any]:
+    if type(value) is not dict:
+        raise PacketDecodeError(f"{field} must be a JSON object")
+    actual = set(value)
+    if actual != keys:
+        missing = sorted(keys.difference(actual))
+        extra = sorted(actual.difference(keys))
+        raise PacketDecodeError(
+            f"{field} has wrong keys; missing={missing!r}, extra={extra!r}"
+        )
+    return value
+
+
+def _list(value: Any, field: str) -> list[Any]:
+    if type(value) is not list:
+        raise PacketDecodeError(f"{field} must be a JSON array")
+    return value
+
+
+def _string(value: Any, field: str) -> str:
+    if type(value) is not str or not value:
+        raise PacketDecodeError(f"{field} must be a non-empty string")
+    return value
+
+
+def _boolean(value: Any, field: str) -> bool:
+    if type(value) is not bool:
+        raise PacketDecodeError(f"{field} must be a Boolean")
+    return value
+
+
+def _string_tuple(value: Any, field: str) -> tuple[str, ...]:
+    return tuple(
+        _string(item, f"{field}[{index}]")
+        for index, item in enumerate(_list(value, field))
+    )
+
+
+def _decode_task(value: Any) -> PublicTask:
+    task_data = _mapping(
+        value,
+        "task",
+        {"task_id", "variable_order", "evidence", "interventions"},
+    )
+    variable_order = _string_tuple(task_data["variable_order"], "task.variable_order")
+
+    evidence: list[EvidenceCase] = []
+    for index, raw_case in enumerate(_list(task_data["evidence"], "task.evidence")):
+        case = _mapping(
+            raw_case,
+            f"task.evidence[{index}]",
+            {"case_id", "assignment", "output"},
+        )
+        assignment = tuple(
+            _boolean(bit, f"task.evidence[{index}].assignment[{bit_index}]")
+            for bit_index, bit in enumerate(
+                _list(case["assignment"], f"task.evidence[{index}].assignment")
+            )
+        )
+        evidence.append(
+            EvidenceCase(
+                _string(case["case_id"], f"task.evidence[{index}].case_id"),
+                assignment,
+                _boolean(case["output"], f"task.evidence[{index}].output"),
+            )
+        )
+
+    interventions: list[InterventionCase] = []
+    for index, raw_item in enumerate(
+        _list(task_data["interventions"], "task.interventions")
+    ):
+        item = _mapping(
+            raw_item,
+            f"task.interventions[{index}]",
+            {
+                "intervention_id",
+                "variable",
+                "before_case_id",
+                "after_case_id",
+                "changed_output",
+            },
+        )
+        interventions.append(
+            InterventionCase(
+                _string(
+                    item["intervention_id"],
+                    f"task.interventions[{index}].intervention_id",
+                ),
+                _string(item["variable"], f"task.interventions[{index}].variable"),
+                _string(
+                    item["before_case_id"],
+                    f"task.interventions[{index}].before_case_id",
+                ),
+                _string(
+                    item["after_case_id"],
+                    f"task.interventions[{index}].after_case_id",
+                ),
+                _boolean(
+                    item["changed_output"],
+                    f"task.interventions[{index}].changed_output",
+                ),
+            )
+        )
+
+    try:
+        return PublicTask(
+            _string(task_data["task_id"], "task.task_id"),
+            variable_order,
+            tuple(evidence),
+            tuple(interventions),
+        )
+    except (TypeError, ValueError) as exc:
+        raise PacketDecodeError(f"invalid public task: {exc}") from exc
+
+
+def _decode_expression(value: Any, field: str, variables: tuple[str, ...]) -> Expr:
+    text = _string(value, field)
+    try:
+        return parse_canonical_text(text, allowed_variables=variables)
+    except (CanonicalParseError, TypeError, ValueError) as exc:
+        raise PacketDecodeError(f"invalid {field}: {exc}") from exc
+
+
+def _decode_packet_payload(payload: dict[str, Any], task: PublicTask) -> HypothesisPacket:
+    allowed_variables = task.variable_order
+    fragments: list[HypothesisFragment] = []
+    for index, raw_fragment in enumerate(_list(payload["fragments"], "fragments")):
+        fragment = _mapping(
+            raw_fragment,
+            f"fragments[{index}]",
+            {
+                "fragment_id",
+                "expression",
+                "role",
+                "supporting_case_ids",
+                "contradicting_case_ids",
+                "predictions",
+                "confidence",
+            },
+        )
+        predictions: list[FragmentPrediction] = []
+        for prediction_index, raw_prediction in enumerate(
+            _list(fragment["predictions"], f"fragments[{index}].predictions")
+        ):
+            prediction = _mapping(
+                raw_prediction,
+                f"fragments[{index}].predictions[{prediction_index}]",
+                {"case_id", "output"},
+            )
+            predictions.append(
+                FragmentPrediction(
+                    _string(
+                        prediction["case_id"],
+                        f"fragments[{index}].predictions[{prediction_index}].case_id",
+                    ),
+                    _boolean(
+                        prediction["output"],
+                        f"fragments[{index}].predictions[{prediction_index}].output",
+                    ),
+                )
+            )
+
+        confidence = fragment["confidence"]
+        if type(confidence) not in (int, float):
+            raise PacketDecodeError(
+                f"fragments[{index}].confidence must be a plain number"
+            )
+        try:
+            role = FragmentRole(_string(fragment["role"], f"fragments[{index}].role"))
+        except ValueError as exc:
+            raise PacketDecodeError(
+                f"fragments[{index}].role is not a recognized role"
+            ) from exc
+
+        fragments.append(
+            HypothesisFragment(
+                fragment_id=_string(
+                    fragment["fragment_id"], f"fragments[{index}].fragment_id"
+                ),
+                expression=_decode_expression(
+                    fragment["expression"],
+                    f"fragments[{index}].expression",
+                    allowed_variables,
+                ),
+                role=role,
+                supporting_case_ids=_string_tuple(
+                    fragment["supporting_case_ids"],
+                    f"fragments[{index}].supporting_case_ids",
+                ),
+                contradicting_case_ids=_string_tuple(
+                    fragment["contradicting_case_ids"],
+                    f"fragments[{index}].contradicting_case_ids",
+                ),
+                predictions=tuple(predictions),
+                confidence=float(confidence),
+            )
+        )
+
+    try:
+        return HypothesisPacket(
+            member_id=_string(payload["member_id"], "member_id"),
+            complete_candidate=_decode_expression(
+                payload["complete_candidate"],
+                "complete_candidate",
+                allowed_variables,
+            ),
+            fragments=tuple(fragments),
+            counterexample_case_ids=_string_tuple(
+                payload["counterexample_case_ids"], "counterexample_case_ids"
+            ),
+            uncertainty_fragment_ids=_string_tuple(
+                payload["uncertainty_fragment_ids"], "uncertainty_fragment_ids"
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise PacketDecodeError(f"invalid hypothesis packet: {exc}") from exc
+
+
+def decode_validated_packet(
+    canonical_bytes: bytes,
+    *,
+    expected_task: PublicTask | None = None,
+    expected_sha256: str | None = None,
+    max_bytes: int = MAX_PACKET_BYTES,
+) -> DecodedPacket:
+    """Decode only the exact canonical packet representation.
+
+    The decoder reconstructs the public task and packet, revalidates every
+    reference, reserializes the result, and requires byte-for-byte identity.
+    """
+
+    if type(canonical_bytes) is not bytes:
+        raise TypeError("canonical packet input must be bytes")
+    if not canonical_bytes:
+        raise PacketDecodeError("canonical packet input must not be empty")
+    if max_bytes < 1:
+        raise ValueError("max_bytes must be positive")
+    if len(canonical_bytes) > max_bytes:
+        raise PacketDecodeError("canonical packet exceeds byte limit")
+
+    try:
+        text = canonical_bytes.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise PacketDecodeError("canonical packet must contain ASCII JSON") from exc
+
+    try:
+        raw = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_object_keys,
+            parse_constant=_reject_json_constant,
+        )
+    except PacketDecodeError:
+        raise
+    except json.JSONDecodeError as exc:
+        raise PacketDecodeError(f"invalid JSON: {exc.msg}") from exc
+
+    payload = _mapping(
+        raw,
+        "packet",
+        {
+            "schema",
+            "task",
+            "member_id",
+            "complete_candidate",
+            "fragments",
+            "counterexample_case_ids",
+            "uncertainty_fragment_ids",
+        },
+    )
+    if payload["schema"] != PACKET_SCHEMA:
+        raise PacketDecodeError(f"unsupported packet schema: {payload['schema']!r}")
+
+    task = _decode_task(payload["task"])
+    if expected_task is not None and _canonical_task_payload(task) != _canonical_task_payload(
+        expected_task
+    ):
+        raise PacketDecodeError("serialized public task does not match expected task")
+
+    packet = _decode_packet_payload(payload, task)
+    try:
+        validated = validate_and_hash_packet(packet, task)
+    except (TypeError, ValueError) as exc:
+        raise PacketDecodeError(f"packet validation failed: {exc}") from exc
+
+    if validated.canonical_bytes != canonical_bytes:
+        raise PacketDecodeError("packet JSON is valid but not in canonical form")
+
+    if expected_sha256 is not None:
+        if type(expected_sha256) is not str or len(expected_sha256) != 64:
+            raise ValueError("expected_sha256 must be a 64-character hexadecimal string")
+        try:
+            int(expected_sha256, 16)
+        except ValueError as exc:
+            raise ValueError(
+                "expected_sha256 must be a 64-character hexadecimal string"
+            ) from exc
+        if validated.canonical_sha256 != expected_sha256.lower():
+            raise PacketDecodeError("packet SHA-256 does not match expected digest")
+
+    return DecodedPacket(task, validated)
