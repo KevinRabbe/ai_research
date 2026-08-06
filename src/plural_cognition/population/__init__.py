@@ -1,5 +1,11 @@
 """Population packets, graphs, synthesis, verification, and contribution analysis."""
 
+from .coalition import (
+    RealizedMemberContribution,
+    SynthesisCoalitionOutcome,
+    SynthesisCoalitionReport,
+    evaluate_synthesis_coalitions,
+)
 from .credit import (
     CoalitionEvaluation,
     exact_shapley_values,
@@ -70,8 +76,11 @@ __all__ = [
     "PacketDecodeError",
     "PacketVisibleAudit",
     "ProvenanceGraph",
+    "RealizedMemberContribution",
     "SourceRef",
     "SynthesizedCandidate",
+    "SynthesisCoalitionOutcome",
+    "SynthesisCoalitionReport",
     "SynthesisConfig",
     "SynthesisResult",
     "SynthesisRule",
@@ -81,6 +90,7 @@ __all__ = [
     "build_provenance_graph",
     "decode_validated_packet",
     "error_correlation_matrix",
+    "evaluate_synthesis_coalitions",
     "exact_shapley_values",
     "evaluate_all_coalitions",
     "leave_one_out_contributions",
