@@ -35,6 +35,7 @@ def read_screening_result(
         "execution_sha256",
         "checkpoint_sha256",
         "validation_shard_manifest_sha256s",
+        "generation",
         "case_count",
         "parse_rate",
         "exact_accuracy",
@@ -46,6 +47,15 @@ def read_screening_result(
         raise ScaleSelectionInputError("screening evaluation has wrong fields")
     if payload["schema"] != "plural-cognition-validation-evaluation-v1":
         raise ScaleSelectionInputError("unsupported screening evaluation schema")
+    if payload["generation"] != {
+        "mode": "greedy",
+        "sampling_seed": None,
+        "temperature": None,
+        "top_k": None,
+    }:
+        raise ScaleSelectionInputError(
+            "model-scale selection requires greedy checkpoint evaluations"
+        )
     if not isinstance(payload["cases"], list) or payload["case_count"] != len(payload["cases"]):
         raise ScaleSelectionInputError("screening evaluation case count is inconsistent")
     shard_values = payload["validation_shard_manifest_sha256s"]
