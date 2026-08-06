@@ -2,9 +2,13 @@ from dataclasses import replace
 
 import pytest
 
-from plural_cognition.dataset_shard import DatasetShardManifest
+from plural_cognition.dataset_shard import (
+    DatasetShardManifest,
+    training_data_config_sha256,
+)
 from plural_cognition.execution import ExecutionManifest
 from plural_cognition.experiment import RunIntent, resolve_run_intent
+from plural_cognition.training_data import TrainingDataConfig
 
 
 def _run():
@@ -18,12 +22,16 @@ def _run():
     )
 
 
+def _config_hash(data_seed: int = 2) -> str:
+    return training_data_config_sha256(TrainingDataConfig(base_seed=data_seed))
+
+
 def _shard(split, start, count, records="d" * 64):
     return DatasetShardManifest(
         split,
         start,
         count,
-        "c" * 64,
+        _config_hash(),
         records,
         count * 200,
     )
@@ -41,6 +49,7 @@ def test_execution_manifest_binds_complete_training_and_validation_data() -> Non
     assert manifest.required_training_examples == 39_168
     assert manifest.effective_training_tokens == 10_027_008
     assert manifest.training_example_count == 39_168
+    assert manifest.data_config_sha256 == manifest.expected_data_config_sha256
     assert len(manifest.sha256) == 64
 
 
@@ -86,3 +95,15 @@ def test_execution_rejects_mixed_data_configs() -> None:
             (_shard("train", 0, 39_168),),
             (validation,),
         )
+
+
+def test_execution_rejects_data_seed_mismatch() -> None:
+    wrong_hash = _config_hash(data_seed=3)
+    training = replace(_shard("train", 0, 39_168), config_sha256=wrong_hash)
+    validation = replace(
+        _shard("validation", 0, 512, "e" * 64),
+        config_sha256=wrong_hash,
+    )
+
+    with pytest.raises(ValueError, match="run data seed"):
+        ExecutionManifest(_run(), (training,), (validation,))
