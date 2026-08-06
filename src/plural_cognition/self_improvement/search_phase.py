@@ -1,4 +1,4 @@
-"""Public SI search phase using unparented equal-budget random proposals."""
+"""Public SI search phase using cached target-free packet preparation."""
 
 from __future__ import annotations
 
@@ -7,13 +7,16 @@ from typing import Sequence
 from plural_cognition.boolean_world import CausalExample
 
 from .candidate_pool import FrozenCandidatePool
-from .evaluation import evaluate_policy_on_split
 from .experiment import (
     SearchPhaseResult,
     _validate_split,
     deterministic_target_permutation,
 )
 from .manifests import ExperimentSplit, SelfImprovementExperimentManifest, freeze_finalists
+from .prepared import (
+    evaluate_prepared_policy_on_split,
+    prepare_candidate_pool,
+)
 from .search import (
     SplitFitness,
     run_quality_diverse_search,
@@ -44,24 +47,34 @@ def run_search_phase(
         development_pool,
         development_examples,
     )
+    prepared_discovery = prepare_candidate_pool(discovery_pool)
+    prepared_development = prepare_candidate_pool(development_pool)
+    normal_cache: dict[str, tuple[SplitFitness, SplitFitness]] = {}
+    shuffled_cache: dict[str, tuple[SplitFitness, SplitFitness]] = {}
 
     def evaluator(genome):
-        discovery = evaluate_policy_on_split(
-            genome,
-            discovery_pool,
+        normalized = genome.normalized()
+        cached = normal_cache.get(normalized.sha256)
+        if cached is not None:
+            return cached
+        discovery = evaluate_prepared_policy_on_split(
+            normalized,
+            prepared_discovery,
             discovery_examples,
             budget=experiment.reasoning_budget,
         )
-        development = evaluate_policy_on_split(
-            genome,
-            development_pool,
+        development = evaluate_prepared_policy_on_split(
+            normalized,
+            prepared_development,
             development_examples,
             budget=experiment.reasoning_budget,
         )
-        return (
+        result = (
             SplitFitness.from_policy_evaluation(discovery),
             SplitFitness.from_policy_evaluation(development),
         )
+        normal_cache[normalized.sha256] = result
+        return result
 
     discovery_permutation = deterministic_target_permutation(
         len(discovery_examples),
@@ -73,24 +86,30 @@ def run_search_phase(
     )
 
     def shuffled_evaluator(genome):
-        discovery = evaluate_policy_on_split(
-            genome,
-            discovery_pool,
+        normalized = genome.normalized()
+        cached = shuffled_cache.get(normalized.sha256)
+        if cached is not None:
+            return cached
+        discovery = evaluate_prepared_policy_on_split(
+            normalized,
+            prepared_discovery,
             discovery_examples,
             budget=experiment.reasoning_budget,
             target_source_indices=discovery_permutation,
         )
-        development = evaluate_policy_on_split(
-            genome,
-            development_pool,
+        development = evaluate_prepared_policy_on_split(
+            normalized,
+            prepared_development,
             development_examples,
             budget=experiment.reasoning_budget,
             target_source_indices=development_permutation,
         )
-        return (
+        result = (
             SplitFitness.from_policy_evaluation(discovery),
             SplitFitness.from_policy_evaluation(development),
         )
+        shuffled_cache[normalized.sha256] = result
+        return result
 
     single_best = run_single_best_search(
         evaluator,
