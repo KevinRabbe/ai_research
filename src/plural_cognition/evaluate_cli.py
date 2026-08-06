@@ -38,11 +38,17 @@ def validation_evaluation_payload(
     *,
     execution_sha256: str,
     checkpoint_sha256: str,
+    validation_shard_manifest_sha256s: tuple[str, ...],
 ) -> dict:
+    if not validation_shard_manifest_sha256s:
+        raise ValueError("validation evaluation requires shard manifest identities")
     return {
         "schema": "plural-cognition-validation-evaluation-v1",
         "execution_sha256": execution_sha256,
         "checkpoint_sha256": checkpoint_sha256,
+        "validation_shard_manifest_sha256s": list(
+            validation_shard_manifest_sha256s
+        ),
         "case_count": len(evaluation.cases),
         "parse_rate": evaluation.parse_rate,
         "exact_accuracy": evaluation.exact_accuracy,
@@ -132,6 +138,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 evaluation,
                 execution_sha256=execution.sha256,
                 checkpoint_sha256=_file_sha256(args.checkpoint),
+                validation_shard_manifest_sha256s=tuple(
+                    shard.sha256 for shard in execution.validation_shards
+                ),
             ),
         )
     except (OSError, TypeError, ValueError, RuntimeError) as exc:
