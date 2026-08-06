@@ -22,8 +22,8 @@ from plural_cognition.boolean_world.canonical import canonical_text, normalize
 from plural_cognition.boolean_world.semantics import semantic_key
 from plural_cognition.boolean_world.world import PublicTask, evaluate_visible
 
-from .packet import ValidatedPacket
 from .graph import SourceRef
+from .packet import ValidatedPacket
 from .verification import audit_visible_packet
 
 
@@ -214,7 +214,6 @@ def synthesize_visible(
     effective = config or SynthesisConfig()
     counters = _Counters()
     records: dict[int, _Record] = {}
-    canonical_seen: set[str] = set()
     allowed_operators: set[str] = set()
     initial_expressions = 0
 
@@ -281,7 +280,6 @@ def synthesize_visible(
             record.initial_semantics = record.initial_semantics or initial
             if text < canonical_text(record.expression):
                 record.expression = normalized
-        canonical_seen.add(text)
         return True
 
     for packet in sorted(packets, key=lambda item: item.canonical_sha256):
@@ -301,13 +299,13 @@ def synthesize_visible(
 
         verified_ids = set(audits[packet.canonical_sha256].verified_fragment_ids)
         for fragment in sorted(packet.packet.fragments, key=lambda item: item.fragment_id):
-            allowed_operators.update(_operators(fragment.expression))
             if (
                 effective.require_verified_fragment_metadata
                 and fragment.fragment_id not in verified_ids
             ):
                 counters.excluded_unverified_fragments += 1
                 continue
+            allowed_operators.update(_operators(fragment.expression))
             source = SourceRef(member, packet.canonical_sha256, fragment.fragment_id)
             if not add_expression(
                 fragment.expression,
@@ -419,7 +417,15 @@ def synthesize_visible(
                     record.visible_total,
                     record.mismatch_case_ids,
                     tuple(sorted(record.sources)),
-                    tuple(sorted(record.derivations)),
+                    tuple(
+                        sorted(
+                            record.derivations,
+                            key=lambda item: (
+                                item.rule.value,
+                                item.parent_candidate_ids,
+                            ),
+                        )
+                    ),
                     record.initial_semantics,
                 )
                 for record in records.values()
