@@ -49,7 +49,9 @@ class ExecutionManifest:
     ) -> None:
         if tuple(sorted(shards, key=lambda item: item.start_index)) != shards:
             raise ValueError("dataset shards must be sorted by start_index")
-        expected_start = shards[0].start_index
+        if shards[0].start_index != 0:
+            raise ValueError("screening dataset shard ranges must start at index zero")
+        expected_start = 0
         for shard in shards:
             if shard.split != expected_split:
                 raise ValueError(f"expected {expected_split} dataset shard")
