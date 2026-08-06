@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from statistics import mean
-from typing import Any, Sequence
+from typing import Any
 
 from .population.statistics import ConfidenceInterval, paired_bootstrap_mean_interval
 
@@ -22,6 +22,7 @@ class ConditionMetrics:
     mean_synthesis_gain: float
     internal_qualification_passed: bool
     full_synthesis_semantic_accuracies: tuple[float, ...]
+    synthesis_gains: tuple[float, ...]
     validation_shard_manifest_sha256s: tuple[str, ...]
 
 
@@ -87,6 +88,7 @@ def condition_metrics_from_payload(payload: Any) -> ConditionMetrics:
         float(summary["mean_synthesis_gain"]),
         qualification["passed"],
         tuple(accuracies),
+        tuple(gains),
         tuple(shard_values),
     )
 
@@ -124,56 +126,11 @@ def compare_population_conditions(
             strict=True,
         )
     )
-    # Per-task gain is already synthesis minus the strongest member in that
-    # condition. Reconstruct it from task payloads through the aggregate means is
-    # insufficient for a paired interval, so require callers to supply task gain
-    # vectors through the helper below when comparing payloads.
-    raise AssertionError("use compare_population_payloads for paired gain analysis")
-
-
-def compare_population_payloads(
-    primary_payload: Any,
-    same_weight_payload: Any,
-    *,
-    minimum_control_coverage: float = 0.95,
-    bootstrap_resamples: int = 10_000,
-    bootstrap_seed: int = 20260806,
-) -> ConditionComparison:
-    primary = condition_metrics_from_payload(primary_payload)
-    same_weight = condition_metrics_from_payload(same_weight_payload)
-    if primary.population_type != "different-checkpoint-greedy":
-        raise ConditionComparisonError(
-            "primary condition must be different-checkpoint-greedy"
-        )
-    if same_weight.population_type != "same-checkpoint-sampled":
-        raise ConditionComparisonError(
-            "control condition must be same-checkpoint-sampled"
-        )
-    if primary.case_count != same_weight.case_count:
-        raise ConditionComparisonError("condition case counts differ")
-    if (
-        primary.validation_shard_manifest_sha256s
-        != same_weight.validation_shard_manifest_sha256s
-    ):
-        raise ConditionComparisonError("conditions used different validation shards")
-
-    primary_tasks = primary_payload["tasks"]
-    control_tasks = same_weight_payload["tasks"]
-    accuracy_differences = tuple(
-        float(primary_task["full_synthesis_semantic_accuracy"])
-        - float(control_task["full_synthesis_semantic_accuracy"])
-        for primary_task, control_task in zip(
-            primary_tasks,
-            control_tasks,
-            strict=True,
-        )
-    )
     gain_differences = tuple(
-        float(primary_task["synthesis_gain"])
-        - float(control_task["synthesis_gain"])
-        for primary_task, control_task in zip(
-            primary_tasks,
-            control_tasks,
+        primary_value - control_value
+        for primary_value, control_value in zip(
+            primary.synthesis_gains,
+            same_weight.synthesis_gains,
             strict=True,
         )
     )
@@ -211,6 +168,23 @@ def compare_population_payloads(
         gain_ci,
         not reasons,
         tuple(reasons),
+    )
+
+
+def compare_population_payloads(
+    primary_payload: Any,
+    same_weight_payload: Any,
+    *,
+    minimum_control_coverage: float = 0.95,
+    bootstrap_resamples: int = 10_000,
+    bootstrap_seed: int = 20260806,
+) -> ConditionComparison:
+    return compare_population_conditions(
+        condition_metrics_from_payload(primary_payload),
+        condition_metrics_from_payload(same_weight_payload),
+        minimum_control_coverage=minimum_control_coverage,
+        bootstrap_resamples=bootstrap_resamples,
+        bootstrap_seed=bootstrap_seed,
     )
 
 
