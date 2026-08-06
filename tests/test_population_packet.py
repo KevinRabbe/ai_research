@@ -62,7 +62,7 @@ def test_packet_hash_is_canonical_across_nonsemantic_ordering() -> None:
     assert first.task_id == "TASK-1"
 
 
-def test_packet_hash_binds_member_and_task_identity() -> None:
+def test_packet_hash_binds_member_and_complete_public_task() -> None:
     base = _packet()
     other_member = HypothesisPacket(
         member_id="M1",
@@ -71,14 +71,27 @@ def test_packet_hash_binds_member_and_task_identity() -> None:
         counterexample_case_ids=base.counterexample_case_ids,
         uncertainty_fragment_ids=base.uncertainty_fragment_ids,
     )
-    other_task = PublicTask(
+    renamed_task = PublicTask(
         "TASK-2", _task().variable_order, _task().evidence, _task().interventions
+    )
+    changed_evidence_same_id = PublicTask(
+        "TASK-1",
+        _task().variable_order,
+        (
+            EvidenceCase("E0", (False, False), True),
+            *_task().evidence[1:],
+        ),
+        _task().interventions,
     )
 
     base_hash = validate_and_hash_packet(base, _task()).canonical_sha256
 
     assert validate_and_hash_packet(other_member, _task()).canonical_sha256 != base_hash
-    assert validate_and_hash_packet(base, other_task).canonical_sha256 != base_hash
+    assert validate_and_hash_packet(base, renamed_task).canonical_sha256 != base_hash
+    assert (
+        validate_and_hash_packet(base, changed_evidence_same_id).canonical_sha256
+        != base_hash
+    )
 
 
 def test_packet_validation_rejects_unknown_variables_and_case_references() -> None:
@@ -120,6 +133,10 @@ def test_packet_contract_rejects_ambiguous_or_invalid_metadata() -> None:
     with pytest.raises(ValueError, match="confidence"):
         HypothesisFragment(
             "F0", Var("A"), FragmentRole.ATOM, confidence=float("nan")
+        )
+    with pytest.raises(TypeError, match="confidence"):
+        HypothesisFragment(
+            "F0", Var("A"), FragmentRole.ATOM, confidence=True
         )
     with pytest.raises(ValueError, match="unknown fragments"):
         HypothesisPacket(
