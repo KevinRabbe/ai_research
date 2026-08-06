@@ -10,6 +10,7 @@ from plural_cognition.validation import (
 def test_validation_payload_preserves_fixed_outputs_and_scores() -> None:
     generation = GenerationResult(True, Var("V0"), (12, 2), None)
     case = ValidationCaseResult(
+        0,
         "MODEL-TASK",
         generation,
         True,
@@ -30,6 +31,7 @@ def test_validation_payload_preserves_fixed_outputs_and_scores() -> None:
     assert payload["exact_accuracy"] == 1.0
     assert payload["cases"] == [
         {
+            "case_index": 0,
             "task_id": "MODEL-TASK",
             "valid": True,
             "expression": "V0",
