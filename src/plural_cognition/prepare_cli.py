@@ -92,6 +92,16 @@ def build_dataset_shard_main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def _load_data_manifests(args):
+    training = tuple(
+        read_dataset_shard_manifest(path) for path in args.training_manifests
+    )
+    validation = tuple(
+        read_dataset_shard_manifest(path) for path in args.validation_manifests
+    )
+    return training, validation
+
+
 def _execution_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Bind one resolved screening run to exact dataset shard manifests."
@@ -120,12 +130,7 @@ def prepare_execution_main(argv: Sequence[str] | None = None) -> int:
             raise ValueError(
                 f"screening plan contains {len(matches)} matching runs; expected exactly one"
             )
-        training = tuple(
-            read_dataset_shard_manifest(path) for path in args.training_manifests
-        )
-        validation = tuple(
-            read_dataset_shard_manifest(path) for path in args.validation_manifests
-        )
+        training, validation = _load_data_manifests(args)
         execution = ExecutionManifest(matches[0], training, validation)
         write_execution_manifest(args.output, execution)
     except (OSError, TypeError, ValueError) as exc:
@@ -137,6 +142,43 @@ def prepare_execution_main(argv: Sequence[str] | None = None) -> int:
         f"effective_tokens={execution.effective_training_tokens} "
         f"training_examples={execution.required_training_examples}"
     )
+    return 0
+
+
+def _all_executions_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Create execution manifests for every run in a screening plan."
+    )
+    parser.add_argument("--screening-plan", type=Path, required=True)
+    parser.add_argument("--training-manifests", type=Path, nargs="+", required=True)
+    parser.add_argument("--validation-manifests", type=Path, nargs="+", required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    return parser
+
+
+def prepare_all_executions_main(argv: Sequence[str] | None = None) -> int:
+    parser = _all_executions_parser()
+    args = parser.parse_args(argv)
+    try:
+        runs = read_screening_plan(args.screening_plan)
+        training, validation = _load_data_manifests(args)
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        outputs = []
+        for run in runs:
+            execution = ExecutionManifest(run, training, validation)
+            model_slug = run.intent.model_name.lower().replace("-", "")
+            path = args.output_dir / (
+                f"execution-{model_slug}-seed-{run.intent.initialization_seed}.json"
+            )
+            if path.exists():
+                raise ValueError(f"refusing to overwrite existing execution: {path}")
+            write_execution_manifest(path, execution)
+            outputs.append((path, execution))
+    except (OSError, TypeError, ValueError) as exc:
+        parser.exit(2, f"error: {exc}\n")
+    print(f"wrote {len(outputs)} execution manifests to {args.output_dir}")
+    for path, execution in outputs:
+        print(f"{path.name} execution_sha256={execution.sha256}")
     return 0
 
 
