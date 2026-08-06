@@ -18,6 +18,7 @@ from .self_improvement.io import (
 )
 from .self_improvement_cli_common import (
     SelfImprovementCommandError,
+    current_git_commit,
     file_sha256,
     iter_examples,
     load_frozen_checkpoint,
@@ -81,10 +82,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise SelfImprovementCommandError(
                 f"checkpoint does not exist: {args.checkpoint}"
             )
+        generation_commit = current_git_commit()
         row_count = sum(manifest.example_count for _, manifest in bindings)
         if args.dry_run:
             print(
-                f"verified {row_count} target-free rows and {len(seeds)} sampling paths"
+                f"verified {row_count} target-free rows and {len(seeds)} sampling "
+                f"paths on SI commit {generation_commit}"
             )
             return 0
 
@@ -115,6 +118,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 model,
                 public_tasks,
                 device=device,
+                generation_git_commit=generation_commit,
                 execution_sha256=execution_sha,
                 checkpoint_sha256=checkpoint_sha,
                 task_shard_manifest_sha256s=shard_hashes,
