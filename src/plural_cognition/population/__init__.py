@@ -20,6 +20,12 @@ from .credit import (
     evaluate_all_coalitions,
     leave_one_out_contributions,
 )
+from .experiment import (
+    IndividualTaskResult,
+    MemberCandidate,
+    PopulationTaskReport,
+    run_population_task_experiment,
+)
 from .extraction import ExtractedPacket, extract_packet_from_candidate
 from .graph import (
     EdgeKind,
@@ -88,13 +94,16 @@ __all__ = [
     "GraphEdge",
     "HypothesisFragment",
     "HypothesisPacket",
+    "IndividualTaskResult",
     "InterventionNode",
     "MarkerNode",
+    "MemberCandidate",
     "MemberKnowledgeContribution",
     "NodeKind",
     "PacketDecodeError",
     "PacketVisibleAudit",
     "PopulationKnowledgeReport",
+    "PopulationTaskReport",
     "ProvenanceGraph",
     "RealizedMemberContribution",
     "SelectedCandidate",
@@ -121,6 +130,7 @@ __all__ = [
     "pairwise_error_correlation",
     "run_ablation",
     "run_ablation_suite",
+    "run_population_task_experiment",
     "select_initial_candidates",
     "semantic_distance_matrix",
     "synthesize_visible",
