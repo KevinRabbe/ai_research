@@ -10,6 +10,7 @@ from plural_cognition.manifest_io import (
     write_dataset_shard_manifest,
 )
 from plural_cognition.prepare_cli import (
+    prepare_all_executions_main,
     prepare_execution_main,
     resolve_screening_plan_main,
 )
@@ -83,3 +84,24 @@ def test_resolve_and_prepare_execution_commands(tmp_path) -> None:
     assert execution.run.intent.model_name == "PC-10M"
     assert execution.run.microbatch_examples == 64
     assert execution.required_training_examples == 39_168
+
+    all_dir = tmp_path / "executions"
+    assert prepare_all_executions_main(
+        (
+            "--screening-plan",
+            str(plan_path),
+            "--training-manifests",
+            str(train_path),
+            "--validation-manifests",
+            str(validation_path),
+            "--output-dir",
+            str(all_dir),
+        )
+    ) == 0
+    outputs = sorted(all_dir.glob("execution-*.json"))
+    assert len(outputs) == 6
+    assert {read_execution_manifest(path).run.intent.model_name for path in outputs} == {
+        "PC-4M",
+        "PC-10M",
+        "PC-18M",
+    }
