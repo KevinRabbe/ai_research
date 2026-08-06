@@ -24,6 +24,7 @@ from .graph import (
     SourceRef,
     build_provenance_graph,
 )
+from .graph_synthesis import integrate_synthesis_result
 from .metrics import (
     ErrorCorrelation,
     error_correlation_matrix,
@@ -93,6 +94,7 @@ __all__ = [
     "evaluate_synthesis_coalitions",
     "exact_shapley_values",
     "evaluate_all_coalitions",
+    "integrate_synthesis_result",
     "leave_one_out_contributions",
     "pairwise_error_correlation",
     "semantic_distance_matrix",
