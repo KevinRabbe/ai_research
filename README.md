@@ -66,7 +66,7 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/09-v1.1-symbolic-codec.md`](docs/09-v1.1-symbolic-codec.md) — qualified symbolic grammar, context boundary, and decoder CPU contract
 - [`docs/10-v1.1-cuda-preflight.md`](docs/10-v1.1-cuda-preflight.md) — exact RTX 4060 Ti throughput and memory procedure
 - [`docs/11-reasoning-mathematics-and-search-design.md`](docs/11-reasoning-mathematics-and-search-design.md) — proof-carrying fragments, hypothesis graphs, semantic diversity, exact contribution attribution, and research-derived synthesis design
-- [`docs/12-v1.2-cpu-population-foundation.md`](docs/12-v1.2-cpu-population-foundation.md) — qualified packet, graph, verification, contribution, and bounded synthesis contracts
+- [`docs/12-v1.2-cpu-population-foundation.md`](docs/12-v1.2-cpu-population-foundation.md) — qualified packet, graph, verification, synthesis, and coalition-attribution contracts
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
@@ -88,19 +88,21 @@ CPU smoke:                  forward/backward implemented for all three
 CUDA preflight runner:      deterministic 30-case default sweep and atomic JSON
 ```
 
-The first V1.2 CPU population foundation is also qualified:
+The V1.2 CPU population foundation is qualified on executable head `73fc7d60d0e24484f55b8a52ba42f9cc1ff7b8a0`:
 
 ```text
 canonical member packets:   strict decode, complete task binding, SHA-256
 semantic diversity:         exact truth-table distance and error correlation
-cooperative credit:         all 16 four-member coalitions and exact Shapley values
 provenance graph:            typed nodes, typed/hyperedges, semantic merging
 proof auditing:              visible support, contradiction, prediction, counterexample checks
-bounded synthesis:           member-proposed operators, exact deduplication, hard limits
-qualification:               87 tests green on CI run 136
+bounded synthesis:           accepted member operators, exact deduplication, hard limits
+coalition evaluation:        every member subset synthesized and scored after selection
+cooperative attribution:     realized leave-one-out and exact Shapley values
+scientific firewall:         external or hidden score cannot steer visible synthesis
+qualification:               91 tests green on CI run 146
 ```
 
-A constructed infrastructure case confirms that the synthesizer can combine multi-source fragments into a visibly exact semantic result absent from every initial complete candidate. This is not evidence that trained models will produce such fragments reliably.
+A constructed infrastructure case confirms that the synthesizer can combine multi-source fragments into a visibly exact semantic result absent from every initial complete candidate. Exact coalition analysis distinguishes members that appear in provenance from members whose removal actually changes the selected semantics or score. This is not evidence that trained models will produce useful complementary fragments reliably.
 
 No empirical model-learning capability, target-machine GPU throughput, or plural-cognition gain has yet been established. The next external qualification is the exact RTX 4060 Ti sweep when the GPU is free. The next scientific qualification requires one-member learning curves, independently trained populations, learned packets, hidden exact evaluation, and matched controls.
 
