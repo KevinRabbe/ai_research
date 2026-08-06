@@ -19,7 +19,6 @@ from .experiment import (
     PairedImprovement,
     SearchPhaseResult,
     deterministic_target_permutation,
-    open_hidden_phase,
 )
 from .generation import (
     TargetFreeGenerationArtifact,
@@ -33,6 +32,7 @@ from .genome import (
     PolicyMode,
     ReasoningPolicyGenome,
 )
+from .hidden_phase import open_hidden_phase
 from .manifest_builder import build_experiment_manifest
 from .manifests import (
     ExperimentSplit,
@@ -54,6 +54,13 @@ from .policy import (
     PolicyResourceTrace,
     ReasoningBudget,
     execute_reasoning_policy,
+)
+from .prepared import (
+    PreparedCandidatePool,
+    PreparedPolicyTask,
+    evaluate_prepared_policy_on_split,
+    execute_prepared_policy,
+    prepare_candidate_pool,
 )
 from .search import (
     GenomeEvaluationRecord,
@@ -91,6 +98,8 @@ __all__ = [
     "PolicyMode",
     "PolicyResourceTrace",
     "PolicyTaskScore",
+    "PreparedCandidatePool",
+    "PreparedPolicyTask",
     "PromotionEvent",
     "ProposedMutation",
     "ReasoningBudget",
@@ -111,10 +120,13 @@ __all__ = [
     "deterministic_target_permutation",
     "enumerate_normalized_genomes",
     "evaluate_policy_on_split",
+    "evaluate_prepared_policy_on_split",
+    "execute_prepared_policy",
     "execute_reasoning_policy",
     "freeze_finalists",
     "generate_target_free_artifact",
     "open_hidden_phase",
+    "prepare_candidate_pool",
     "propose_neighbor_mutations",
     "run_quality_diverse_search",
     "run_random_search",
