@@ -3,7 +3,6 @@ from plural_cognition.boolean_world import (
     CatalogEntry,
     EvidenceCase,
     MechanismCatalog,
-    Not,
     PublicTask,
     Var,
     canonical_text,
@@ -18,13 +17,13 @@ from plural_cognition.population import (
 
 
 def _qualification() -> QualificationTask:
-    order = ("A", "B")
+    order = ("A", "B", "C")
     target = And((Var("A"), Var("B")))
     mechanisms = (
         target,
         Var("A"),
         Var("B"),
-        And((Var("A"), Not(Var("B")))),
+        And((Var("A"), Var("C"))),
     )
     entries = tuple(
         CatalogEntry(
@@ -35,15 +34,18 @@ def _qualification() -> QualificationTask:
         for mechanism in mechanisms
     )
     catalog = MechanismCatalog(order, entries)
+    evidence = tuple(
+        EvidenceCase(
+            f"E{value:03b}",
+            tuple(bool((value >> shift) & 1) for shift in (2, 1, 0)),
+            bool((value & 0b100) and (value & 0b010)),
+        )
+        for value in range(8)
+    )
     public = PublicTask(
         "TASK-POPULATION-EXPERIMENT",
         order,
-        (
-            EvidenceCase("E00", (False, False), False),
-            EvidenceCase("E01", (False, True), False),
-            EvidenceCase("E10", (True, False), False),
-            EvidenceCase("E11", (True, True), True),
-        ),
+        evidence,
         (),
     )
     return QualificationTask(
@@ -59,9 +61,7 @@ def test_end_to_end_report_detects_strong_synthesis_event() -> None:
     report = run_population_task_experiment(
         _qualification(),
         (
-            MemberCandidate(
-                "M0", And((Var("A"), Not(Var("B"))))
-            ),
+            MemberCandidate("M0", And((Var("A"), Var("C")))),
             MemberCandidate("M1", Var("B")),
         ),
         synthesis_config=SynthesisConfig(
