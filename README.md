@@ -65,6 +65,7 @@ The architecture earns additional scale only if it demonstrates reproducible syn
 - [`docs/08-v1.1-model-scale-selection.md`](docs/08-v1.1-model-scale-selection.md) — exact decoder brackets and hardware-aware selection protocol
 - [`docs/09-v1.1-symbolic-codec.md`](docs/09-v1.1-symbolic-codec.md) — qualified symbolic grammar, context boundary, and decoder CPU contract
 - [`docs/10-v1.1-cuda-preflight.md`](docs/10-v1.1-cuda-preflight.md) — exact RTX 4060 Ti throughput and memory procedure
+- [`docs/11-reasoning-mathematics-and-search-design.md`](docs/11-reasoning-mathematics-and-search-design.md) — proof-carrying fragments, hypothesis graphs, semantic diversity, exact contribution attribution, and research-derived synthesis design
 - [`docs/references.md`](docs/references.md) — adjacent research and primary sources
 
 ## Current status
@@ -86,7 +87,18 @@ CPU smoke:                  forward/backward implemented for all three
 CUDA preflight runner:      deterministic 30-case default sweep and atomic JSON
 ```
 
-No empirical learning capability, GPU throughput, or plural-cognition claim has yet been established. The next external qualification is the exact target-machine CUDA sweep on the RTX 4060 Ti, followed by the deterministic training stream, run manifests, and short learning curves.
+The population design now has a research-backed next stage:
+
+```text
+immutable proof-carrying member packets
+→ semantic diversity measurement
+→ provenance-preserving hypothesis graph
+→ bounded symbolic composition
+→ exact visible verification
+→ leave-one-out and exact four-member Shapley attribution
+```
+
+No empirical learning capability, GPU throughput, or plural-cognition claim has yet been established. The next external qualification is the exact target-machine CUDA sweep on the RTX 4060 Ti when the GPU is free. GPU-independent work can continue on manifests, deterministic data streams, hypothesis packets, graph schemas, semantic metrics, and bounded synthesis.
 
 ## Commands
 
