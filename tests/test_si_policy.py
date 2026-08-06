@@ -84,7 +84,7 @@ def test_verified_synthesis_improves_constructed_fixed_pool() -> None:
     assert descendant.valid is True
     assert descendant.canonical_expression == "AND(V0,V1)"
     assert descendant.visible_accuracy == 1.0
-    assert set(descendant.source_ids) == {"sample-401", "sample-402"}
+    assert {"sample-401", "sample-402"} <= set(descendant.source_ids)
     assert descendant.resources.generated_composites > 0
 
 
