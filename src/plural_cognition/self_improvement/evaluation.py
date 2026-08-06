@@ -135,21 +135,22 @@ def evaluate_policy_on_split(
         )
         decoded_public = decode_supervised_causal_example(examples[case_index])
         decoded_target = decode_supervised_causal_example(examples[target_index])
-        if (
-            decoded_public.public.variable_order
-            != decoded_target.public.variable_order
-        ):
+        variable_order = decoded_public.public.variable_order
+        if variable_order != decoded_target.public.variable_order:
             raise ValueError("shuffled target uses a different variable order")
         if execution.valid and execution.expression is not None:
             exact = exact_equivalence(
                 execution.expression,
                 decoded_target.target,
-                decoded_public.public.variable_order,
+                variable_order,
             ).equivalent
-            semantic_accuracy = 1.0 - semantic_distance(
+            distance = semantic_distance(
                 execution.expression,
                 decoded_target.target,
-                decoded_public.public.variable_order,
+                variable_order,
+            )
+            semantic_accuracy = 1.0 - (
+                distance / (1 << len(variable_order))
             )
         else:
             exact = False
@@ -163,7 +164,6 @@ def evaluate_policy_on_split(
             )
         )
 
-    count = len(cases)
     operations = tuple(case.execution.resources.reasoning_operations for case in cases)
     return PolicyEvaluation(
         genome.normalized().sha256,
