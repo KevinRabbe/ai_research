@@ -1,7 +1,13 @@
 """Exact Boolean mechanism worlds used by the Version 1 experiment."""
 
 from .ast import And, Const, Expr, Ite, Not, Or, Var, depth, node_count, variables
-from .canonical import canonical_text, normalize, structural_key
+from .canonical import (
+    CanonicalParseError,
+    canonical_text,
+    normalize,
+    parse_canonical_text,
+    structural_key,
+)
 from .catalog import CatalogEntry, MechanismCatalog, build_catalog
 from .codec import (
     BOS_ID,
@@ -52,6 +58,7 @@ __all__ = [
     "Assignment",
     "And",
     "BOS_ID",
+    "CanonicalParseError",
     "CatalogEntry",
     "CausalExample",
     "CodecError",
@@ -95,6 +102,7 @@ __all__ = [
     "generate_mechanism",
     "node_count",
     "normalize",
+    "parse_canonical_text",
     "semantic_distance",
     "semantic_key",
     "structural_key",
