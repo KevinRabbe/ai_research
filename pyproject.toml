@@ -22,6 +22,7 @@ plural-cognition-evaluate = "plural_cognition.evaluate_cli:main"
 plural-cognition-select-scale = "plural_cognition.select_scale_cli:main"
 plural-cognition-prepare-population-plan = "plural_cognition.population_plan_cli:main"
 plural-cognition-evaluate-population = "plural_cognition.population_eval_cli:main"
+plural-cognition-compare-conditions = "plural_cognition.compare_conditions_cli:main"
 
 [project.optional-dependencies]
 dev = [
