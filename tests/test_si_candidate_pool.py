@@ -24,8 +24,14 @@ def _tasks():
     )
 
 
-def _evaluation(seed: int, expression: str | None = "V0") -> dict:
+def _evaluation(
+    seed: int,
+    expression: str | None = "V0",
+    *,
+    generated_token_ids: list[int] | None = None,
+) -> dict:
     valid = expression is not None
+    tokens = [10 + seed, 2] if generated_token_ids is None else generated_token_ids
     return {
         "schema": "plural-cognition-validation-evaluation-v1",
         "execution_sha256": "a" * 64,
@@ -48,7 +54,7 @@ def _evaluation(seed: int, expression: str | None = "V0") -> dict:
                 "task_id": "MODEL-TASK",
                 "valid": valid,
                 "expression": expression,
-                "generated_token_ids": [10 + seed, 2],
+                "generated_token_ids": tokens,
                 "generation_error": None if valid else "parse failed",
                 "exact": valid,
                 "visible_consistent": valid,
@@ -77,6 +83,17 @@ def test_pool_is_deterministic_across_artifact_order() -> None:
     assert first.tasks[0].public_task.variable_order == ("V0",)
     assert first.tasks[0].candidates[1].valid is False
     assert first.tasks[0].candidates[1].error == "parse failed"
+
+
+def test_pool_preserves_failure_before_any_token_was_emitted() -> None:
+    pool = build_frozen_candidate_pool(
+        _tasks(),
+        (_evaluation(401, None, generated_token_ids=[]),),
+    )
+
+    assert pool.tasks[0].candidates[0].valid is False
+    assert pool.tasks[0].candidates[0].generated_token_ids == ()
+    assert FrozenCandidatePool.from_payload(pool.canonical_payload()) == pool
 
 
 def test_pool_round_trip_preserves_canonical_identity() -> None:
