@@ -20,7 +20,6 @@ from .experiment import (
     SearchPhaseResult,
     deterministic_target_permutation,
     open_hidden_phase,
-    run_search_phase,
 )
 from .generation import (
     TargetFreeGenerationArtifact,
@@ -34,6 +33,7 @@ from .genome import (
     PolicyMode,
     ReasoningPolicyGenome,
 )
+from .manifest_builder import build_experiment_manifest
 from .manifests import (
     ExperimentSplit,
     FinalistEntry,
@@ -41,7 +41,6 @@ from .manifests import (
     FinalistRole,
     SelfImprovementExperimentManifest,
     SplitManifest,
-    build_experiment_manifest,
     freeze_finalists,
 )
 from .mutation import (
@@ -65,9 +64,10 @@ from .search import (
     SplitFitness,
     enumerate_normalized_genomes,
     run_quality_diverse_search,
-    run_random_search,
     run_single_best_search,
 )
+from .search_phase import run_search_phase
+from .search_random import run_random_search
 
 __all__ = [
     "BehaviorDescriptor",
