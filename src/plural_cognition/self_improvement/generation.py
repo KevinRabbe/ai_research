@@ -79,6 +79,7 @@ class TargetFreeGenerationCase:
 
 @dataclass(frozen=True, slots=True)
 class TargetFreeGenerationArtifact:
+    generation_git_commit: str
     execution_sha256: str
     checkpoint_sha256: str
     task_shard_manifest_sha256s: tuple[str, ...]
@@ -89,6 +90,9 @@ class TargetFreeGenerationArtifact:
     SCHEMA = "plural-cognition-si-target-free-generation-v1"
 
     def __post_init__(self) -> None:
+        if not isinstance(self.generation_git_commit, str) or len(self.generation_git_commit) != 40:
+            raise ValueError("generation_git_commit must contain 40 hexadecimal characters")
+        int(self.generation_git_commit, 16)
         for field in ("execution_sha256", "checkpoint_sha256"):
             value = getattr(self, field)
             if not isinstance(value, str) or len(value) != 64:
@@ -110,6 +114,7 @@ class TargetFreeGenerationArtifact:
     def canonical_payload(self) -> dict[str, object]:
         return {
             "schema": self.SCHEMA,
+            "generation_git_commit": self.generation_git_commit,
             "execution_sha256": self.execution_sha256,
             "checkpoint_sha256": self.checkpoint_sha256,
             "task_shard_manifest_sha256s": list(
@@ -140,6 +145,7 @@ class TargetFreeGenerationArtifact:
             raise ValueError("generation artifact payload must be an object")
         expected = {
             "schema",
+            "generation_git_commit",
             "execution_sha256",
             "checkpoint_sha256",
             "task_shard_manifest_sha256s",
@@ -164,6 +170,7 @@ class TargetFreeGenerationArtifact:
             raise ValueError("generation artifact case count is inconsistent")
         try:
             artifact = cls(
+                payload["generation_git_commit"],
                 payload["execution_sha256"],
                 payload["checkpoint_sha256"],
                 tuple(payload["task_shard_manifest_sha256s"]),
@@ -214,6 +221,7 @@ def generate_target_free_artifact(
     public_tasks: Sequence[PublicTask],
     *,
     device: torch.device,
+    generation_git_commit: str,
     execution_sha256: str,
     checkpoint_sha256: str,
     task_shard_manifest_sha256s: tuple[str, ...],
@@ -250,6 +258,7 @@ def generate_target_free_artifact(
             )
         cases.append(_case_from_result(case_index, task, result))
     return TargetFreeGenerationArtifact(
+        generation_git_commit,
         execution_sha256,
         checkpoint_sha256,
         task_shard_manifest_sha256s,
@@ -269,6 +278,8 @@ def build_pool_from_generation_artifacts(
     ordered = tuple(sorted(artifacts, key=lambda item: item.source.source_id))
     if len({item.source.source_id for item in ordered}) != len(ordered):
         raise ValueError("generation source IDs must be unique")
+    if len({item.generation_git_commit for item in ordered}) != 1:
+        raise ValueError("generation artifacts use different SI code commits")
     if len({item.execution_sha256 for item in ordered}) != 1:
         raise ValueError("generation artifacts use different executions")
     if len({item.checkpoint_sha256 for item in ordered}) != 1:
