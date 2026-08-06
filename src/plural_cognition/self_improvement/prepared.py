@@ -25,7 +25,7 @@ from plural_cognition.population import (
 )
 from plural_cognition.validation import decode_supervised_causal_example
 
-from .candidate_pool import CandidatePoolTask, FrozenCandidatePool
+from .candidate_pool import FrozenCandidatePool
 from .evaluation import PolicyEvaluation, PolicyTaskScore
 from .genome import PolicyMode, ReasoningPolicyGenome
 from .policy import (
@@ -334,10 +334,13 @@ def evaluate_prepared_policy_on_split(
                 target,
                 variable_order,
             ).equivalent
-            semantic_accuracy = 1.0 - semantic_distance(
+            distance = semantic_distance(
                 execution.expression,
                 target,
                 variable_order,
+            )
+            semantic_accuracy = 1.0 - (
+                distance / (1 << len(variable_order))
             )
         else:
             exact = False
