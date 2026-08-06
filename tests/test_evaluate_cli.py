@@ -1,0 +1,42 @@
+from plural_cognition.boolean_world import Var
+from plural_cognition.evaluate_cli import validation_evaluation_payload
+from plural_cognition.inference import GenerationResult
+from plural_cognition.validation import (
+    ValidationCaseResult,
+    ValidationEvaluation,
+)
+
+
+def test_validation_payload_preserves_fixed_outputs_and_scores() -> None:
+    generation = GenerationResult(True, Var("V0"), (12, 2), None)
+    case = ValidationCaseResult(
+        "MODEL-TASK",
+        generation,
+        True,
+        True,
+        1.0,
+    )
+    evaluation = ValidationEvaluation((case,), 1.0, 1.0, 1.0, 1.0)
+
+    payload = validation_evaluation_payload(
+        evaluation,
+        execution_sha256="a" * 64,
+        checkpoint_sha256="b" * 64,
+    )
+
+    assert payload["schema"] == "plural-cognition-validation-evaluation-v1"
+    assert payload["execution_sha256"] == "a" * 64
+    assert payload["checkpoint_sha256"] == "b" * 64
+    assert payload["exact_accuracy"] == 1.0
+    assert payload["cases"] == [
+        {
+            "task_id": "MODEL-TASK",
+            "valid": True,
+            "expression": "V0",
+            "generated_token_ids": [12, 2],
+            "generation_error": None,
+            "exact": True,
+            "visible_consistent": True,
+            "semantic_accuracy": 1.0,
+        }
+    ]
