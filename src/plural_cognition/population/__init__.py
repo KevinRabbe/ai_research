@@ -13,22 +13,28 @@ from .metrics import (
     semantic_distance_matrix,
 )
 from .packet import (
+    DecodedPacket,
     FragmentPrediction,
     FragmentRole,
     HypothesisFragment,
     HypothesisPacket,
+    PacketDecodeError,
     ValidatedPacket,
+    decode_validated_packet,
     validate_and_hash_packet,
 )
 
 __all__ = [
     "CoalitionEvaluation",
+    "DecodedPacket",
     "ErrorCorrelation",
     "FragmentPrediction",
     "FragmentRole",
     "HypothesisFragment",
     "HypothesisPacket",
+    "PacketDecodeError",
     "ValidatedPacket",
+    "decode_validated_packet",
     "error_correlation_matrix",
     "exact_shapley_values",
     "evaluate_all_coalitions",
