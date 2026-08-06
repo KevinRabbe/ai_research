@@ -31,11 +31,16 @@ class DecodedSupervision:
 
 @dataclass(frozen=True, slots=True)
 class ValidationCaseResult:
+    case_index: int
     task_id: str
     generation: GenerationResult
     exact: bool
     visible_consistent: bool
     semantic_accuracy: float
+
+    def __post_init__(self) -> None:
+        if self.case_index < 0:
+            raise ValueError("validation case_index must not be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +79,7 @@ def evaluate_validation_examples(
     if not examples:
         raise ValueError("validation evaluation requires at least one example")
     cases: list[ValidationCaseResult] = []
-    for example in examples:
+    for case_index, example in enumerate(examples):
         decoded = decode_supervised_causal_example(example)
         generation = greedy_generate_mechanism(
             model,
@@ -100,6 +105,7 @@ def evaluate_validation_examples(
             semantic_accuracy = 0.0
         cases.append(
             ValidationCaseResult(
+                case_index,
                 decoded.public.task_id,
                 generation,
                 exact,
@@ -108,7 +114,6 @@ def evaluate_validation_examples(
             )
         )
 
-    count = len(cases)
     return ValidationEvaluation(
         tuple(cases),
         mean(float(case.generation.valid) for case in cases),
