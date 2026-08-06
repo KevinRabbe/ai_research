@@ -7,8 +7,12 @@ from dataclasses import dataclass
 from hashlib import sha256
 from math import ceil
 
-from .dataset_shard import DatasetShardManifest
+from .dataset_shard import (
+    DatasetShardManifest,
+    training_data_config_sha256,
+)
 from .experiment import ResolvedRunManifest
+from .training_data import TrainingDataConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +32,10 @@ class ExecutionManifest:
         }
         if len(config_hashes) != 1:
             raise ValueError("all execution shards must share one data configuration")
+        if self.data_config_sha256 != self.expected_data_config_sha256:
+            raise ValueError(
+                "dataset configuration does not match the run data seed and frozen V1.1 defaults"
+            )
         if self.training_example_count < self.required_training_examples:
             raise ValueError(
                 "training shards do not cover the complete matched-compute run"
@@ -82,6 +90,12 @@ class ExecutionManifest:
     @property
     def data_config_sha256(self) -> str:
         return self.training_shards[0].config_sha256
+
+    @property
+    def expected_data_config_sha256(self) -> str:
+        return training_data_config_sha256(
+            TrainingDataConfig(base_seed=self.run.intent.data_seed)
+        )
 
     def canonical_payload(self) -> dict:
         return {
