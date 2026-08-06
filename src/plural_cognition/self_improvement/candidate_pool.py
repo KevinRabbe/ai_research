@@ -86,11 +86,11 @@ class FrozenCandidate:
     def __post_init__(self) -> None:
         if not self.source_id:
             raise ValueError("candidate source_id must not be empty")
-        if not self.generated_token_ids:
-            raise ValueError("candidate token sequence must not be empty")
         if any(type(token) is not int or token < 0 for token in self.generated_token_ids):
             raise ValueError("candidate token IDs must be nonnegative integers")
         if self.valid:
+            if not self.generated_token_ids:
+                raise ValueError("valid candidate token sequence must not be empty")
             if not isinstance(self.expression_text, str) or not self.expression_text:
                 raise ValueError("valid candidate requires an expression")
             if self.error is not None:
