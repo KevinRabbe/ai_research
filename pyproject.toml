@@ -25,6 +25,7 @@ plural-cognition-evaluate-population = "plural_cognition.population_eval_cli:mai
 plural-cognition-compare-conditions = "plural_cognition.compare_conditions_cli:main"
 plural-cognition-si-build-tasks = "plural_cognition.self_improvement_tasks_cli:main"
 plural-cognition-si-generate = "plural_cognition.self_improvement_generate_cli:main"
+plural-cognition-si-generate-pool = "plural_cognition.self_improvement_generate_pool_cli:main"
 plural-cognition-si-build-pool = "plural_cognition.self_improvement_pool_cli:main"
 plural-cognition-si-prepare = "plural_cognition.self_improvement_prepare_cli:main"
 plural-cognition-si-search = "plural_cognition.self_improvement_search_cli:main"
