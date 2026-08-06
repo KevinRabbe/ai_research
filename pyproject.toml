@@ -18,6 +18,7 @@ plural-cognition-build-dataset = "plural_cognition.prepare_cli:build_dataset_sha
 plural-cognition-prepare-execution = "plural_cognition.prepare_cli:prepare_execution_main"
 plural-cognition-train = "plural_cognition.train_cli:main"
 plural-cognition-evaluate = "plural_cognition.evaluate_cli:main"
+plural-cognition-evaluate-population = "plural_cognition.population_eval_cli:main"
 
 [project.optional-dependencies]
 dev = [
