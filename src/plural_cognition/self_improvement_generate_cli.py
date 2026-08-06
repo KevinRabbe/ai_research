@@ -11,6 +11,7 @@ from .self_improvement import GenerationSource, generate_target_free_artifact
 from .self_improvement.io import write_generation_artifact
 from .self_improvement_cli_common import (
     SelfImprovementCommandError,
+    current_git_commit,
     file_sha256,
     iter_examples,
     load_frozen_checkpoint,
@@ -71,10 +72,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise SelfImprovementCommandError(
                 f"checkpoint does not exist: {args.checkpoint}"
             )
+        generation_commit = current_git_commit()
         if args.dry_run:
             print(
                 f"verified {sum(manifest.example_count for _, manifest in bindings)} "
-                "target-free task rows"
+                f"target-free task rows on SI commit {generation_commit}"
             )
             return 0
         device = validate_generation_environment(execution, args.preflight)
@@ -102,6 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             model,
             public_tasks,
             device=device,
+            generation_git_commit=generation_commit,
             execution_sha256=execution.sha256,
             checkpoint_sha256=file_sha256(args.checkpoint),
             task_shard_manifest_sha256s=shard_manifest_sha256s(bindings),
