@@ -22,7 +22,7 @@ from plural_cognition.self_improvement import (
 
 
 def _public() -> PublicTask:
-    order = ("A", "B", "C")
+    order = ("V0", "V1", "V2")
     evidence = tuple(
         EvidenceCase(
             f"E{value:03b}",
@@ -37,10 +37,10 @@ def _public() -> PublicTask:
 def _pool() -> FrozenCandidatePool:
     public = _public()
     expressions = (
-        ("sample-401", And((Var("A"), Var("C")))),
-        ("sample-402", Var("B")),
-        ("sample-403", Var("C")),
-        ("sample-404", Var("A")),
+        ("sample-401", And((Var("V0"), Var("V2")))),
+        ("sample-402", Var("V1")),
+        ("sample-403", Var("V2")),
+        ("sample-404", Var("V0")),
     )
     sources = tuple(
         GenerationSource(source_id, "sampled", 401 + index, 1.0, 8)
@@ -82,7 +82,7 @@ def test_verified_synthesis_improves_constructed_fixed_pool() -> None:
     assert parent.valid is True
     assert parent.visible_accuracy == 0.75
     assert descendant.valid is True
-    assert descendant.canonical_expression == "AND(A,B)"
+    assert descendant.canonical_expression == "AND(V0,V1)"
     assert descendant.visible_accuracy == 1.0
     assert set(descendant.source_ids) == {"sample-401", "sample-402"}
     assert descendant.resources.generated_composites > 0
@@ -103,7 +103,10 @@ def test_policy_fails_closed_when_candidate_input_budget_is_exceeded() -> None:
 
 def test_split_scorer_scores_only_after_policy_output_is_fixed() -> None:
     pool = _pool()
-    example = encode_causal_example(_public(), And((Var("A"), Var("B"))))
+    example = encode_causal_example(
+        _public(),
+        And((Var("V0"), Var("V1"))),
+    )
     descendant = ReasoningPolicyGenome(PolicyMode.VERIFIED_SYNTHESIS)
 
     parent_score = evaluate_policy_on_split(
