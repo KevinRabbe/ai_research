@@ -1,6 +1,9 @@
 import pytest
 
-from plural_cognition.dataset_shard import DatasetShardManifest
+from plural_cognition.dataset_shard import (
+    DatasetShardManifest,
+    training_data_config_sha256,
+)
 from plural_cognition.execution import ExecutionManifest
 from plural_cognition.experiment import RunIntent, resolve_run_intent
 from plural_cognition.manifest_io import (
@@ -12,6 +15,11 @@ from plural_cognition.manifest_io import (
     write_execution_manifest,
     write_screening_plan,
 )
+from plural_cognition.training_data import TrainingDataConfig
+
+
+def _config_hash() -> str:
+    return training_data_config_sha256(TrainingDataConfig(base_seed=2))
 
 
 def _manifest(split: str = "train", count: int = 10) -> DatasetShardManifest:
@@ -19,7 +27,7 @@ def _manifest(split: str = "train", count: int = 10) -> DatasetShardManifest:
         split,
         0,
         count,
-        "a" * 64,
+        _config_hash(),
         ("b" if split == "train" else "c") * 64,
         count * 100,
     )
@@ -58,12 +66,12 @@ def test_execution_manifest_round_trip_recomputes_derived_fields(tmp_path) -> No
         run,
         (
             DatasetShardManifest(
-                "train", 0, 39_168, "a" * 64, "b" * 64, 8_000_000
+                "train", 0, 39_168, _config_hash(), "b" * 64, 8_000_000
             ),
         ),
         (
             DatasetShardManifest(
-                "validation", 0, 512, "a" * 64, "c" * 64, 100_000
+                "validation", 0, 512, _config_hash(), "c" * 64, 100_000
             ),
         ),
     )
