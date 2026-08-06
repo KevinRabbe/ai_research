@@ -1,5 +1,13 @@
 """Population packets, graphs, synthesis, verification, and contribution analysis."""
 
+from .ablation import (
+    AblationMode,
+    AblationOutcome,
+    SelectedCandidate,
+    run_ablation,
+    run_ablation_suite,
+    select_initial_candidates,
+)
 from .coalition import (
     RealizedMemberContribution,
     SynthesisCoalitionOutcome,
@@ -12,6 +20,7 @@ from .credit import (
     evaluate_all_coalitions,
     leave_one_out_contributions,
 )
+from .extraction import ExtractedPacket, extract_packet_from_candidate
 from .graph import (
     EdgeKind,
     EvidenceNode,
@@ -63,6 +72,8 @@ from .verification import (
 )
 
 __all__ = [
+    "AblationMode",
+    "AblationOutcome",
     "CoalitionEvaluation",
     "DecodedPacket",
     "Derivation",
@@ -70,6 +81,7 @@ __all__ = [
     "ErrorCorrelation",
     "EvidenceNode",
     "ExpressionNode",
+    "ExtractedPacket",
     "FragmentPrediction",
     "FragmentRole",
     "FragmentVisibleAudit",
@@ -85,6 +97,7 @@ __all__ = [
     "PopulationKnowledgeReport",
     "ProvenanceGraph",
     "RealizedMemberContribution",
+    "SelectedCandidate",
     "SourceRef",
     "SynthesizedCandidate",
     "SynthesisCoalitionOutcome",
@@ -102,9 +115,13 @@ __all__ = [
     "evaluate_synthesis_coalitions",
     "exact_shapley_values",
     "evaluate_all_coalitions",
+    "extract_packet_from_candidate",
     "integrate_synthesis_result",
     "leave_one_out_contributions",
     "pairwise_error_correlation",
+    "run_ablation",
+    "run_ablation_suite",
+    "select_initial_candidates",
     "semantic_distance_matrix",
     "synthesize_visible",
     "validate_and_hash_packet",
