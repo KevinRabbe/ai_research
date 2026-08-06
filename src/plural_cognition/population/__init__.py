@@ -25,6 +25,11 @@ from .graph import (
     build_provenance_graph,
 )
 from .graph_synthesis import integrate_synthesis_result
+from .knowledge_metrics import (
+    MemberKnowledgeContribution,
+    PopulationKnowledgeReport,
+    analyze_population_knowledge,
+)
 from .metrics import (
     ErrorCorrelation,
     error_correlation_matrix,
@@ -73,9 +78,11 @@ __all__ = [
     "HypothesisPacket",
     "InterventionNode",
     "MarkerNode",
+    "MemberKnowledgeContribution",
     "NodeKind",
     "PacketDecodeError",
     "PacketVisibleAudit",
+    "PopulationKnowledgeReport",
     "ProvenanceGraph",
     "RealizedMemberContribution",
     "SourceRef",
@@ -87,6 +94,7 @@ __all__ = [
     "SynthesisRule",
     "SynthesisTrace",
     "ValidatedPacket",
+    "analyze_population_knowledge",
     "audit_visible_packet",
     "build_provenance_graph",
     "decode_validated_packet",
