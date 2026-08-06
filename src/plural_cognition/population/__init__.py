@@ -1,4 +1,4 @@
-"""Population packets, graphs, metrics, and cooperative contribution analysis."""
+"""Population packets, graphs, metrics, verification, and contribution analysis."""
 
 from .credit import (
     CoalitionEvaluation,
@@ -35,6 +35,11 @@ from .packet import (
     decode_validated_packet,
     validate_and_hash_packet,
 )
+from .verification import (
+    FragmentVisibleAudit,
+    PacketVisibleAudit,
+    audit_visible_packet,
+)
 
 __all__ = [
     "CoalitionEvaluation",
@@ -45,6 +50,7 @@ __all__ = [
     "ExpressionNode",
     "FragmentPrediction",
     "FragmentRole",
+    "FragmentVisibleAudit",
     "GraphEdge",
     "HypothesisFragment",
     "HypothesisPacket",
@@ -52,9 +58,11 @@ __all__ = [
     "MarkerNode",
     "NodeKind",
     "PacketDecodeError",
+    "PacketVisibleAudit",
     "ProvenanceGraph",
     "SourceRef",
     "ValidatedPacket",
+    "audit_visible_packet",
     "build_provenance_graph",
     "decode_validated_packet",
     "error_correlation_matrix",
