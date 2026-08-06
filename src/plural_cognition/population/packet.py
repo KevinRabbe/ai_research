@@ -56,6 +56,8 @@ class HypothesisFragment:
             raise ValueError("a case cannot both support and contradict one fragment")
         prediction_ids = tuple(item.case_id for item in self.predictions)
         _validate_unique_nonempty(prediction_ids, "prediction case IDs")
+        if type(self.confidence) not in (int, float):
+            raise TypeError("confidence must be a plain int or float")
         confidence = float(self.confidence)
         if not isfinite(confidence) or not 0.0 <= confidence <= 1.0:
             raise ValueError("confidence must be finite and in [0, 1]")
@@ -108,6 +110,33 @@ def _validate_expression_variables(
         raise ValueError(f"{field} references out-of-task variables: {sorted(unknown)!r}")
 
 
+def _canonical_task_payload(task: PublicTask) -> dict:
+    return {
+        "task_id": task.task_id,
+        "variable_order": list(task.variable_order),
+        "evidence": [
+            {
+                "case_id": case.case_id,
+                "assignment": list(case.assignment),
+                "output": case.output,
+            }
+            for case in sorted(task.evidence, key=lambda item: item.case_id)
+        ],
+        "interventions": [
+            {
+                "intervention_id": item.intervention_id,
+                "variable": item.variable,
+                "before_case_id": item.before_case_id,
+                "after_case_id": item.after_case_id,
+                "changed_output": item.changed_output,
+            }
+            for item in sorted(
+                task.interventions, key=lambda intervention: intervention.intervention_id
+            )
+        ],
+    }
+
+
 def _canonical_payload(packet: HypothesisPacket, task: PublicTask) -> dict:
     fragments = []
     for fragment in sorted(packet.fragments, key=lambda item: item.fragment_id):
@@ -130,8 +159,7 @@ def _canonical_payload(packet: HypothesisPacket, task: PublicTask) -> dict:
 
     return {
         "schema": "plural-cognition-hypothesis-packet-v1",
-        "task_id": task.task_id,
-        "variable_order": list(task.variable_order),
+        "task": _canonical_task_payload(task),
         "member_id": packet.member_id,
         "complete_candidate": canonical_text(packet.complete_candidate),
         "fragments": fragments,
