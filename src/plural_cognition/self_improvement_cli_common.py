@@ -46,6 +46,10 @@ def current_git_commit() -> str:
     commit = completed.stdout.strip()
     if len(commit) != 40:
         raise SelfImprovementCommandError("current Git commit is not a full SHA")
+    try:
+        int(commit, 16)
+    except ValueError as exc:
+        raise SelfImprovementCommandError("current Git commit is not hexadecimal") from exc
     return commit
 
 
@@ -118,10 +122,13 @@ def validate_generation_environment(
     execution: ExecutionManifest,
     preflight: Path,
 ) -> torch.device:
-    if current_git_commit() != execution.run.git_commit:
-        raise SelfImprovementCommandError(
-            "current Git commit differs from the commit measured by the CUDA preflight"
-        )
+    """Validate the frozen training environment without requiring its Git checkout.
+
+    The checkpoint remains bound to its original execution and preflight hashes.
+    SI candidate generation may run from a later qualified tooling commit, which
+    is recorded independently in every target-free generation artifact.
+    """
+
     if file_sha256(preflight) != execution.run.preflight_sha256:
         raise SelfImprovementCommandError(
             "CUDA preflight file hash differs from the execution manifest"
