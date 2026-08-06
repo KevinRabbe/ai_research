@@ -50,6 +50,7 @@ def validation_evaluation_payload(
         "mean_semantic_accuracy": evaluation.mean_semantic_accuracy,
         "cases": [
             {
+                "case_index": case.case_index,
                 "task_id": case.task_id,
                 "valid": case.generation.valid,
                 "expression": None
