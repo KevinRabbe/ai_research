@@ -1,5 +1,7 @@
+from dataclasses import replace
 from types import SimpleNamespace
 
+import pytest
 import torch
 from torch import nn
 
@@ -47,23 +49,28 @@ def _task() -> PublicTask:
     )
 
 
-def test_target_free_artifact_contains_no_target_or_score_fields() -> None:
+def _artifact(source: GenerationSource) -> TargetFreeGenerationArtifact:
     task = _task()
     planned = encode_mechanism(Var("V0"))[2:]
     model = _ScriptedModel(len(encode_inference_prompt(task)), planned)
-
-    artifact = generate_target_free_artifact(
+    return generate_target_free_artifact(
         model,
         (task,),
         device=torch.device("cpu"),
+        generation_git_commit="d" * 40,
         execution_sha256="a" * 64,
         checkpoint_sha256="b" * 64,
         task_shard_manifest_sha256s=("c" * 64,),
-        source=GenerationSource("greedy", "greedy", None, None, None),
+        source=source,
     )
+
+
+def test_target_free_artifact_contains_no_target_or_score_fields() -> None:
+    artifact = _artifact(GenerationSource("greedy", "greedy", None, None, None))
     payload = artifact.canonical_payload()
 
     assert payload["schema"] == "plural-cognition-si-target-free-generation-v1"
+    assert payload["generation_git_commit"] == "d" * 40
     assert payload["cases"][0]["expression"] == "V0"
     assert "target" not in str(payload)
     assert "accuracy" not in str(payload)
@@ -71,26 +78,9 @@ def test_target_free_artifact_contains_no_target_or_score_fields() -> None:
 
 
 def test_generation_artifacts_build_order_invariant_pool() -> None:
-    task = _task()
-    planned = encode_mechanism(Var("V0"))[2:]
-    model = _ScriptedModel(len(encode_inference_prompt(task)), planned)
-    greedy = generate_target_free_artifact(
-        model,
-        (task,),
-        device=torch.device("cpu"),
-        execution_sha256="a" * 64,
-        checkpoint_sha256="b" * 64,
-        task_shard_manifest_sha256s=("c" * 64,),
-        source=GenerationSource("greedy", "greedy", None, None, None),
-    )
-    sampled = generate_target_free_artifact(
-        model,
-        (task,),
-        device=torch.device("cpu"),
-        execution_sha256="a" * 64,
-        checkpoint_sha256="b" * 64,
-        task_shard_manifest_sha256s=("c" * 64,),
-        source=GenerationSource("sample-401", "sampled", 401, 1.0, 8),
+    greedy = _artifact(GenerationSource("greedy", "greedy", None, None, None))
+    sampled = _artifact(
+        GenerationSource("sample-401", "sampled", 401, 1.0, 8)
     )
 
     first = build_pool_from_generation_artifacts((greedy, sampled))
@@ -102,3 +92,14 @@ def test_generation_artifacts_build_order_invariant_pool() -> None:
         "greedy",
         "sample-401",
     ]
+
+
+def test_pool_rejects_generation_paths_from_different_si_commits() -> None:
+    greedy = _artifact(GenerationSource("greedy", "greedy", None, None, None))
+    sampled = replace(
+        _artifact(GenerationSource("sample-401", "sampled", 401, 1.0, 8)),
+        generation_git_commit="e" * 40,
+    )
+
+    with pytest.raises(ValueError, match="different SI code commits"):
+        build_pool_from_generation_artifacts((greedy, sampled))
