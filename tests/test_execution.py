@@ -84,6 +84,15 @@ def test_execution_rejects_dataset_gap_and_insufficient_coverage() -> None:
         )
 
 
+def test_execution_rejects_nonzero_start_index() -> None:
+    with pytest.raises(ValueError, match="start at index zero"):
+        ExecutionManifest(
+            _run(),
+            (_shard("train", 1, 39_168),),
+            (_shard("validation", 0, 512, "e" * 64),),
+        )
+
+
 def test_execution_rejects_mixed_data_configs() -> None:
     validation = replace(
         _shard("validation", 0, 512, "e" * 64),
