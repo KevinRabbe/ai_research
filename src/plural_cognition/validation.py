@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 from statistics import mean
 from typing import Sequence
 
@@ -20,7 +21,12 @@ from .boolean_world.codec import (
 )
 from .boolean_world.semantics import exact_equivalence, semantic_distance
 from .boolean_world.world import PublicTask, evaluate_visible
-from .inference import ANSWER_ID, GenerationResult, greedy_generate_mechanism
+from .inference import (
+    ANSWER_ID,
+    GenerationResult,
+    greedy_generate_mechanism,
+    sample_generate_mechanism,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,26 +73,58 @@ def decode_supervised_causal_example(example: CausalExample) -> DecodedSupervisi
     return DecodedSupervision(public, target)
 
 
+def derive_validation_sampling_seed(base_seed: int, case_index: int) -> int:
+    if type(base_seed) is not int:
+        raise TypeError("sampling base seed must be int")
+    if type(case_index) is not int or case_index < 0:
+        raise ValueError("sampling case index must be a non-negative int")
+    digest = sha256(
+        f"plural-cognition-validation-sample-v1:{base_seed}:{case_index}".encode(
+            "ascii"
+        )
+    ).digest()
+    return int.from_bytes(digest[:8], "big") & ((1 << 63) - 1)
+
+
 def evaluate_validation_examples(
     model: nn.Module,
     examples: Sequence[CausalExample],
     *,
     device: torch.device,
     max_new_tokens: int = 64,
+    sampling_seed: int | None = None,
+    temperature: float = 1.0,
+    top_k: int | None = None,
 ) -> ValidationEvaluation:
-    """Generate fixed outputs, then compare them to evaluator-only targets."""
+    """Generate fixed outputs, then compare them to evaluator-only targets.
+
+    ``sampling_seed=None`` is the deterministic greedy path used for model-scale
+    selection. A supplied seed produces an index-addressed stochastic path used
+    for same-weight and equal-sampling controls.
+    """
 
     if not examples:
         raise ValueError("validation evaluation requires at least one example")
     cases: list[ValidationCaseResult] = []
     for case_index, example in enumerate(examples):
         decoded = decode_supervised_causal_example(example)
-        generation = greedy_generate_mechanism(
-            model,
-            decoded.public,
-            device=device,
-            max_new_tokens=max_new_tokens,
-        )
+        if sampling_seed is None:
+            generation = greedy_generate_mechanism(
+                model,
+                decoded.public,
+                device=device,
+                max_new_tokens=max_new_tokens,
+            )
+        else:
+            generation = sample_generate_mechanism(
+                model,
+                decoded.public,
+                device=device,
+                seed=derive_validation_sampling_seed(sampling_seed, case_index),
+                temperature=temperature,
+                top_k=top_k,
+                max_new_tokens=max_new_tokens,
+            )
         if generation.valid and generation.expression is not None:
             exact = exact_equivalence(
                 generation.expression,
