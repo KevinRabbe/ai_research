@@ -5,7 +5,6 @@ from plural_cognition.boolean_world import (
     CatalogEntry,
     EvidenceCase,
     MechanismCatalog,
-    Not,
     PublicTask,
     Var,
     canonical_text,
@@ -23,13 +22,13 @@ from plural_cognition.population import (
 
 
 def _report():
-    order = ("A", "B")
+    order = ("A", "B", "C")
     target = And((Var("A"), Var("B")))
     mechanisms = (
         target,
         Var("A"),
         Var("B"),
-        And((Var("A"), Not(Var("B")))),
+        And((Var("A"), Var("C"))),
     )
     catalog = MechanismCatalog(
         order,
@@ -42,17 +41,15 @@ def _report():
             for mechanism in mechanisms
         ),
     )
-    public = PublicTask(
-        "TASK-STATS",
-        order,
-        (
-            EvidenceCase("E00", (False, False), False),
-            EvidenceCase("E01", (False, True), False),
-            EvidenceCase("E10", (True, False), False),
-            EvidenceCase("E11", (True, True), True),
-        ),
-        (),
+    evidence = tuple(
+        EvidenceCase(
+            f"E{value:03b}",
+            tuple(bool((value >> shift) & 1) for shift in (2, 1, 0)),
+            bool((value & 0b100) and (value & 0b010)),
+        )
+        for value in range(8)
     )
+    public = PublicTask("TASK-STATS", order, evidence, ())
     task = QualificationTask(
         public,
         target,
@@ -63,7 +60,7 @@ def _report():
     return run_population_task_experiment(
         task,
         (
-            MemberCandidate("M0", And((Var("A"), Not(Var("B"))))),
+            MemberCandidate("M0", And((Var("A"), Var("C")))),
             MemberCandidate("M1", Var("B")),
         ),
         synthesis_config=SynthesisConfig(max_rounds=1, max_unique_candidates=64),
