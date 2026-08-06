@@ -6,11 +6,15 @@ from plural_cognition.checkpoint_bundle import (
     load_execution_checkpoint,
     save_execution_checkpoint,
 )
-from plural_cognition.dataset_shard import DatasetShardManifest
+from plural_cognition.dataset_shard import (
+    DatasetShardManifest,
+    training_data_config_sha256,
+)
 from plural_cognition.execution import ExecutionManifest
 from plural_cognition.experiment import RunIntent, resolve_run_intent
 from plural_cognition.model import PluralDecoder
 from plural_cognition.training import TrainingState, build_optimizer
+from plural_cognition.training_data import TrainingDataConfig
 
 
 def _shard(split: str, count: int, records_sha256: str) -> DatasetShardManifest:
@@ -18,7 +22,7 @@ def _shard(split: str, count: int, records_sha256: str) -> DatasetShardManifest:
         split,
         0,
         count,
-        "c" * 64,
+        training_data_config_sha256(TrainingDataConfig(base_seed=2)),
         records_sha256,
         count * 200,
     )
