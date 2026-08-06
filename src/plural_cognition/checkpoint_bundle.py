@@ -39,6 +39,15 @@ def _sidecar_path(path: str | Path) -> Path:
     return checkpoint.with_name(checkpoint.name + ".manifest.json")
 
 
+def _validate_model_execution(
+    model: PluralDecoder, execution: ExecutionManifest
+) -> None:
+    if model.config != execution.run.intent.model_config:
+        raise ValueError(
+            "checkpoint model configuration does not match execution manifest"
+        )
+
+
 def save_execution_checkpoint(
     path: str | Path,
     *,
@@ -48,6 +57,7 @@ def save_execution_checkpoint(
     state: TrainingState,
     scaler: torch.amp.GradScaler | None = None,
 ) -> ExecutionCheckpointRecord:
+    _validate_model_execution(model, execution)
     record = save_checkpoint(
         path,
         model=model,
@@ -82,6 +92,7 @@ def load_execution_checkpoint(
     scaler: torch.amp.GradScaler | None = None,
     map_location: str | torch.device = "cpu",
 ) -> TrainingState:
+    _validate_model_execution(model, execution)
     sidecar = _sidecar_path(path)
     payload = read_canonical_json(sidecar)
     expected_fields = {
