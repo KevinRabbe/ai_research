@@ -241,6 +241,20 @@ def save_checkpoint(
     )
 
 
+def _restore_rng_states(
+    torch_rng_state: Tensor,
+    cuda_rng_states: Sequence[Tensor] | None,
+) -> None:
+    """Restore generator states after checkpoint tensors may have been remapped."""
+
+    # torch.set_rng_state and torch.cuda.set_rng_state_all expect CPU ByteTensors.
+    # A CUDA map_location is appropriate for model/optimizer tensors but must not
+    # leave generator-state tensors resident on CUDA.
+    torch.set_rng_state(torch_rng_state.cpu())
+    if cuda_rng_states is not None and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(tuple(state.cpu() for state in cuda_rng_states))
+
+
 def load_checkpoint(
     path: str | Path,
     *,
@@ -267,8 +281,8 @@ def load_checkpoint(
         raise ValueError("checkpoint scaler state does not match training precision")
     if scaler is not None:
         scaler.load_state_dict(saved_scaler)
-    torch.set_rng_state(payload["torch_rng_state"])
-    cuda_states = payload.get("cuda_rng_states")
-    if cuda_states is not None and torch.cuda.is_available():
-        torch.cuda.set_rng_state_all(cuda_states)
+    _restore_rng_states(
+        payload["torch_rng_state"],
+        payload.get("cuda_rng_states"),
+    )
     return state
