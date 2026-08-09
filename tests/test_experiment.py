@@ -7,14 +7,30 @@ from plural_cognition.experiment import (
 )
 
 
-def test_default_screening_plan_is_three_scales_by_two_seeds() -> None:
+def test_default_screening_plan_is_v11_three_scales_by_two_seeds() -> None:
     plan = default_screening_plan()
 
     assert len(plan) == 6
     assert {intent.model_name for intent in plan} == {"PC-4M", "PC-10M", "PC-18M"}
     assert {intent.initialization_seed for intent in plan} == {101, 102}
     assert len({intent.sha256 for intent in plan}) == 6
+    assert all(intent.experiment_name == "v1.1-screen" for intent in plan)
     assert all(intent.token_budget == 10_000_000 for intent in plan)
+
+
+def test_v12_screening_changes_capacity_only() -> None:
+    plan = default_screening_plan(protocol="v1.2")
+
+    assert len(plan) == 6
+    assert {intent.model_name for intent in plan} == {"PC-29M", "PC-44M", "PC-64M"}
+    assert {intent.initialization_seed for intent in plan} == {101, 102}
+    assert len({intent.sha256 for intent in plan}) == 6
+    assert all(intent.experiment_name == "v1.2-screen" for intent in plan)
+    assert all(intent.token_budget == 10_000_000 for intent in plan)
+    assert all(intent.sequence_length == 256 for intent in plan)
+    assert all(intent.target_tokens_per_optimizer_step == 32_768 for intent in plan)
+    assert all(intent.validation_examples == 512 for intent in plan)
+    assert all(intent.data_seed == 20260806 for intent in plan)
 
 
 def test_run_intent_hash_is_deterministic_and_sensitive() -> None:
@@ -68,3 +84,8 @@ def test_intent_requires_final_checkpoint_at_budget() -> None:
             2,
             checkpoint_tokens=(1_000_000, 5_000_000),
         )
+
+
+def test_screening_rejects_unknown_protocol() -> None:
+    with pytest.raises(ValueError, match="unknown screening protocol"):
+        default_screening_plan(protocol="v9")
