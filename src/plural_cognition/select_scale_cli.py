@@ -1,4 +1,4 @@
-"""Select the smallest qualifying V1 model from six checkpoint evaluations."""
+"""Select the smallest qualifying V1 model from checkpoint evaluations."""
 
 from __future__ import annotations
 
@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .manifest_io import read_canonical_json, write_canonical_json
-from .screening_selection import ScreeningRunResult, select_screening_scale
+from .screening_selection import (
+    V1_1_MODEL_ORDER,
+    V1_2_MODEL_ORDER,
+    ScreeningRunResult,
+    select_screening_scale,
+)
 
 
 class ScaleSelectionInputError(ValueError):
@@ -107,6 +112,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Select the smallest V1 model in the frozen capability band."
     )
+    parser.add_argument("--protocol", choices=("v1.1", "v1.2"), default="v1.1")
     parser.add_argument(
         "--result",
         nargs=3,
@@ -129,8 +135,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             read_screening_result(model, int(seed), path)
             for model, seed, path in args.result
         )
+        model_order = V1_1_MODEL_ORDER if args.protocol == "v1.1" else V1_2_MODEL_ORDER
         decision = select_screening_scale(
             results,
+            model_order=model_order,
             minimum_parse_rate=args.minimum_parse_rate,
             minimum_exact_accuracy=args.minimum_exact_accuracy,
             maximum_exact_accuracy=args.maximum_exact_accuracy,
@@ -139,7 +147,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, TypeError, ValueError) as exc:
         parser.exit(2, f"error: {exc}\n")
     print(
-        f"wrote {args.output} status={decision.status} "
+        f"wrote {args.output} protocol={args.protocol} status={decision.status} "
         f"selected_model={decision.selected_model}"
     )
     return 0
