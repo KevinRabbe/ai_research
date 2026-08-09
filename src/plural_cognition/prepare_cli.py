@@ -16,16 +16,18 @@ from .manifest_io import (
     write_execution_manifest,
     write_screening_plan,
 )
+from .model import MODEL_CONFIGS
 from .preflight_resolution import resolve_screening_plan_from_preflight
 from .training_data import TrainingDataConfig
 
 
 def _resolve_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Resolve the frozen six-run screening plan from a measured CUDA preflight."
+        description="Resolve a frozen six-run screening plan from a measured CUDA preflight."
     )
     parser.add_argument("--preflight", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--protocol", choices=("v1.1", "v1.2"), default="v1.1")
     parser.add_argument("--initialization-seeds", type=int, nargs="+", default=(101, 102))
     parser.add_argument("--data-seed", type=int, default=20260806)
     return parser
@@ -39,11 +41,15 @@ def resolve_screening_plan_main(argv: Sequence[str] | None = None) -> int:
             args.preflight,
             initialization_seeds=tuple(args.initialization_seeds),
             data_seed=args.data_seed,
+            protocol=args.protocol,
         )
         write_screening_plan(args.output, runs)
     except (OSError, TypeError, ValueError) as exc:
         parser.exit(2, f"error: {exc}\n")
-    print(f"wrote {args.output} with {len(runs)} resolved runs")
+    print(
+        f"wrote {args.output} with {len(runs)} resolved runs "
+        f"protocol={args.protocol}"
+    )
     for run in runs:
         print(
             f"{run.intent.run_id} model={run.intent.model_name} "
@@ -106,8 +112,12 @@ def _execution_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Bind one resolved screening run to exact dataset shard manifests."
     )
+    parser.add_argument(
+        "--model",
+        choices=tuple(config.name for config in MODEL_CONFIGS),
+        required=True,
+    )
     parser.add_argument("--screening-plan", type=Path, required=True)
-    parser.add_argument("--model", choices=("PC-4M", "PC-10M", "PC-18M"), required=True)
     parser.add_argument("--initialization-seed", type=int, required=True)
     parser.add_argument("--training-manifests", type=Path, nargs="+", required=True)
     parser.add_argument("--validation-manifests", type=Path, nargs="+", required=True)
