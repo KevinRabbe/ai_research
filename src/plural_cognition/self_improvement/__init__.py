@@ -1,0 +1,135 @@
+"""Frozen-weight architectural self-improvement experiment primitives."""
+
+from .candidate_pool import (
+    CandidatePoolError,
+    CandidatePoolTask,
+    FrozenCandidate,
+    FrozenCandidatePool,
+    GenerationSource,
+    build_frozen_candidate_pool,
+)
+from .evaluation import (
+    PolicyEvaluation,
+    PolicyTaskScore,
+    evaluate_policy_on_split,
+)
+from .experiment import (
+    FinalistEvaluation,
+    HiddenOpeningReport,
+    PairedImprovement,
+    SearchPhaseResult,
+    deterministic_target_permutation,
+)
+from .generation import (
+    TargetFreeGenerationArtifact,
+    TargetFreeGenerationCase,
+    build_pool_from_generation_artifacts,
+    generate_target_free_artifact,
+)
+from .genome import (
+    BehaviorDescriptor,
+    IMMUTABLE_PARENT_GENOME,
+    PolicyMode,
+    ReasoningPolicyGenome,
+)
+from .hidden_phase import open_hidden_phase
+from .manifest_builder import build_experiment_manifest
+from .manifests import (
+    ExperimentSplit,
+    FinalistEntry,
+    FinalistManifest,
+    FinalistRole,
+    SelfImprovementExperimentManifest,
+    SplitManifest,
+    freeze_finalists,
+)
+from .mutation import (
+    MutationRecord,
+    ProposedMutation,
+    apply_mutation,
+    propose_neighbor_mutations,
+)
+from .policy import (
+    PolicyExecution,
+    PolicyResourceTrace,
+    ReasoningBudget,
+    execute_reasoning_policy,
+)
+from .prepared import (
+    PreparedCandidatePool,
+    PreparedPolicyTask,
+    evaluate_prepared_policy_on_split,
+    execute_prepared_policy,
+    prepare_candidate_pool,
+)
+from .search import (
+    GenomeEvaluationRecord,
+    PromotionEvent,
+    SearchConfig,
+    SearchResult,
+    SearchStrategy,
+    SplitFitness,
+    enumerate_normalized_genomes,
+    run_quality_diverse_search,
+    run_single_best_search,
+)
+from .search_phase import run_search_phase
+from .search_random import run_random_search
+
+__all__ = [
+    "BehaviorDescriptor",
+    "CandidatePoolError",
+    "CandidatePoolTask",
+    "ExperimentSplit",
+    "FinalistEntry",
+    "FinalistEvaluation",
+    "FinalistManifest",
+    "FinalistRole",
+    "FrozenCandidate",
+    "FrozenCandidatePool",
+    "GenerationSource",
+    "GenomeEvaluationRecord",
+    "HiddenOpeningReport",
+    "IMMUTABLE_PARENT_GENOME",
+    "MutationRecord",
+    "PairedImprovement",
+    "PolicyEvaluation",
+    "PolicyExecution",
+    "PolicyMode",
+    "PolicyResourceTrace",
+    "PolicyTaskScore",
+    "PreparedCandidatePool",
+    "PreparedPolicyTask",
+    "PromotionEvent",
+    "ProposedMutation",
+    "ReasoningBudget",
+    "ReasoningPolicyGenome",
+    "SearchConfig",
+    "SearchPhaseResult",
+    "SearchResult",
+    "SearchStrategy",
+    "SelfImprovementExperimentManifest",
+    "SplitFitness",
+    "SplitManifest",
+    "TargetFreeGenerationArtifact",
+    "TargetFreeGenerationCase",
+    "apply_mutation",
+    "build_experiment_manifest",
+    "build_frozen_candidate_pool",
+    "build_pool_from_generation_artifacts",
+    "deterministic_target_permutation",
+    "enumerate_normalized_genomes",
+    "evaluate_policy_on_split",
+    "evaluate_prepared_policy_on_split",
+    "execute_prepared_policy",
+    "execute_reasoning_policy",
+    "freeze_finalists",
+    "generate_target_free_artifact",
+    "open_hidden_phase",
+    "prepare_candidate_pool",
+    "propose_neighbor_mutations",
+    "run_quality_diverse_search",
+    "run_random_search",
+    "run_search_phase",
+    "run_single_best_search",
+]

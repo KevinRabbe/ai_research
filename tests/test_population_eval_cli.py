@@ -18,7 +18,7 @@ from plural_cognition.population_eval_cli import (
 
 
 def _example():
-    order = ("A", "B", "C")
+    order = ("V0", "V1", "V2")
     evidence = tuple(
         EvidenceCase(
             f"E{value:03b}",
@@ -28,7 +28,7 @@ def _example():
         for value in range(8)
     )
     task = PublicTask("TASK-POP-EVAL", order, evidence, ())
-    return encode_causal_example(task, And((Var("A"), Var("B"))))
+    return encode_causal_example(task, And((Var("V0"), Var("V1"))))
 
 
 def _member(
@@ -59,10 +59,10 @@ def _member(
 
 def test_four_member_population_command_payload_reaches_strong_gate() -> None:
     evaluations = (
-        _member("M0", And((Var("A"), Var("C")))),
-        _member("M1", Var("B")),
-        _member("M2", Var("C")),
-        _member("M3", Var("A")),
+        _member("M0", And((Var("V0"), Var("V2")))),
+        _member("M1", Var("V1")),
+        _member("M2", Var("V2")),
+        _member("M3", Var("V0")),
     )
 
     payload = run_population_evaluation(
@@ -83,10 +83,10 @@ def test_four_member_population_command_payload_reaches_strong_gate() -> None:
 
 def test_same_checkpoint_sampled_control_is_classified_explicitly() -> None:
     expressions = (
-        And((Var("A"), Var("C"))),
-        Var("B"),
-        Var("C"),
-        Var("A"),
+        And((Var("V0"), Var("V2"))),
+        Var("V1"),
+        Var("V2"),
+        Var("V0"),
     )
     evaluations = tuple(
         _member(
@@ -117,10 +117,10 @@ def test_same_checkpoint_sampled_control_is_classified_explicitly() -> None:
 
 def test_population_evaluation_rejects_different_validation_shards() -> None:
     evaluations = (
-        _member("M0", Var("A")),
-        _member("M1", Var("B")),
-        _member("M2", Var("C")),
-        _member("M3", Var("A"), shard_hash="9" * 64),
+        _member("M0", Var("V0")),
+        _member("M1", Var("V1")),
+        _member("M2", Var("V2")),
+        _member("M3", Var("V0"), shard_hash="9" * 64),
     )
 
     with pytest.raises(PopulationEvaluationError, match="different validation shards"):

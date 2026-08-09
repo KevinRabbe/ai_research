@@ -47,6 +47,8 @@ class ValidationCaseResult:
     def __post_init__(self) -> None:
         if self.case_index < 0:
             raise ValueError("validation case_index must not be negative")
+        if not 0.0 <= self.semantic_accuracy <= 1.0:
+            raise ValueError("semantic_accuracy must be in [0, 1]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,16 +128,20 @@ def evaluate_validation_examples(
                 max_new_tokens=max_new_tokens,
             )
         if generation.valid and generation.expression is not None:
+            variable_order = decoded.public.variable_order
             exact = exact_equivalence(
                 generation.expression,
                 decoded.target,
-                decoded.public.variable_order,
+                variable_order,
             ).equivalent
             visible = evaluate_visible(generation.expression, decoded.public).consistent
-            semantic_accuracy = 1.0 - semantic_distance(
+            distance = semantic_distance(
                 generation.expression,
                 decoded.target,
-                decoded.public.variable_order,
+                variable_order,
+            )
+            semantic_accuracy = 1.0 - (
+                distance / (1 << len(variable_order))
             )
         else:
             exact = False
