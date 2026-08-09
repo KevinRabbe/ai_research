@@ -8,9 +8,9 @@ from plural_cognition.preflight_resolution import (
 )
 
 
-def _report():
+def _report(models=("PC-4M", "PC-10M", "PC-18M")):
     results = []
-    for model in ("PC-4M", "PC-10M", "PC-18M"):
+    for model in models:
         results.extend(
             (
                 {
@@ -71,6 +71,20 @@ def test_resolution_selects_fastest_case_that_preserves_matched_batch(tmp_path) 
     assert all(run.device_name == "RTX 4060 Ti" for run in runs)
     assert all(run.git_commit == "a" * 40 for run in runs)
     assert len({run.intent.sha256 for run in runs}) == 6
+
+
+def test_v12_resolution_uses_only_recovery_scales(tmp_path) -> None:
+    models = ("PC-29M", "PC-44M", "PC-64M")
+    path = tmp_path / "preflight.json"
+    path.write_text(json.dumps(_report(models)), encoding="utf-8")
+
+    runs = resolve_screening_plan_from_preflight(path, protocol="v1.2")
+
+    assert len(runs) == 6
+    assert {run.intent.model_name for run in runs} == set(models)
+    assert all(run.intent.experiment_name == "v1.2-screen" for run in runs)
+    assert all(run.microbatch_examples == 64 for run in runs)
+    assert all(run.gradient_accumulation_steps == 2 for run in runs)
 
 
 def test_resolution_rejects_report_without_usable_model_case(tmp_path) -> None:
