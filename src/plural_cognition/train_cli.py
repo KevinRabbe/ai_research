@@ -161,6 +161,24 @@ def _progress_payload(
     }
 
 
+def _progress_bar(current: int, total: int, *, width: int = 30) -> str:
+    """Return a fixed-width terminal progress bar for one training run."""
+
+    if total < 1:
+        raise ValueError("progress total must be positive")
+    if width < 1:
+        raise ValueError("progress width must be positive")
+    bounded = min(max(current, 0), total)
+    fraction = bounded / total
+    filled = int(fraction * width)
+    bar = "#" * filled + "-" * (width - filled)
+    digits = len(str(total))
+    return (
+        f"[{bar}] {fraction * 100:6.2f}% "
+        f"({bounded:>{digits}}/{total} steps)"
+    )
+
+
 def run_training(
     execution: ExecutionManifest,
     *,
@@ -277,12 +295,13 @@ def run_training(
             ),
         )
         print(
-            f"step={state.optimizer_steps}/{execution.optimizer_steps} "
-            f"tokens={state.processed_tokens} loss={last_result.mean_loss:.6f} "
-            f"lr={last_result.learning_rate:.8g}",
+            "\r" + _progress_bar(state.optimizer_steps, execution.optimizer_steps),
+            end="",
             flush=True,
         )
 
+    if steps_this_invocation:
+        print(flush=True)
     completed = state.optimizer_steps == execution.optimizer_steps
     terminal_name = "checkpoint-final.pt" if completed else "checkpoint-current.pt"
     terminal_path = output_dir / terminal_name
