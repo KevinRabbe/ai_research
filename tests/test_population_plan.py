@@ -4,9 +4,9 @@ from plural_cognition.experiment import RunIntent, resolve_run_intent
 from plural_cognition.population_plan import build_initial_population_plan
 
 
-def _run(model: str, seed: int, microbatch: int = 64):
+def _run(model: str, seed: int, microbatch: int = 64, experiment: str = "v1.1-screen"):
     return resolve_run_intent(
-        RunIntent("v1.1-screen", model, seed, 20260806),
+        RunIntent(experiment, model, seed, 20260806),
         git_commit="a" * 40,
         precision="bf16",
         microbatch_examples=microbatch,
@@ -46,6 +46,26 @@ def test_population_plan_reuses_two_runs_and_adds_two_seeds() -> None:
     )
     assert len({run.intent.sha256 for run in population}) == 4
     assert all(run.microbatch_examples == 64 for run in population)
+
+
+def test_v12_population_plan_accepts_recovery_scale() -> None:
+    screening = tuple(
+        _run(model, seed, microbatch=32, experiment="v1.2-screen")
+        for model in ("PC-29M", "PC-44M", "PC-64M")
+        for seed in (101, 102)
+    )
+
+    population = build_initial_population_plan("PC-44M", screening)
+
+    assert tuple(run.intent.initialization_seed for run in population) == (
+        101,
+        102,
+        103,
+        104,
+    )
+    assert all(run.intent.model_name == "PC-44M" for run in population)
+    assert all(run.intent.experiment_name == "v1.2-screen" for run in population)
+    assert all(run.microbatch_examples == 32 for run in population)
 
 
 def test_population_plan_rejects_mixed_selected_scale_geometry() -> None:
