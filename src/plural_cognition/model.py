@@ -63,7 +63,18 @@ class DecoderConfig:
 PC_4M = DecoderConfig("PC-4M", layers=6, d_model=256, heads=4)
 PC_10M = DecoderConfig("PC-10M", layers=8, d_model=320, heads=5)
 PC_18M = DecoderConfig("PC-18M", layers=10, d_model=384, heads=6)
-MODEL_CONFIGS = (PC_4M, PC_10M, PC_18M)
+V1_1_MODEL_CONFIGS = (PC_4M, PC_10M, PC_18M)
+
+# V1.2 is a capability-band recovery protocol created only after V1.1
+# formally returned all-too-weak. It changes model capacity only: sequence
+# length, vocabulary, head dimension, FFN multiplier, optimizer, data, seeds,
+# token budget, and evaluation gates remain fixed.
+PC_29M = DecoderConfig("PC-29M", layers=12, d_model=448, heads=7)
+PC_44M = DecoderConfig("PC-44M", layers=14, d_model=512, heads=8)
+PC_64M = DecoderConfig("PC-64M", layers=16, d_model=576, heads=9)
+V1_2_MODEL_CONFIGS = (PC_29M, PC_44M, PC_64M)
+
+MODEL_CONFIGS = V1_1_MODEL_CONFIGS + V1_2_MODEL_CONFIGS
 
 
 def expected_parameter_count(config: DecoderConfig) -> int:
