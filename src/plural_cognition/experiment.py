@@ -8,11 +8,21 @@ from hashlib import sha256
 from math import isfinite
 from typing import Literal
 
-from .model import MODEL_CONFIGS, DecoderConfig, expected_parameter_count
+from .model import (
+    MODEL_CONFIGS,
+    V1_1_MODEL_CONFIGS,
+    V1_2_MODEL_CONFIGS,
+    DecoderConfig,
+    expected_parameter_count,
+)
 
 Precision = Literal["bf16", "fp16", "fp32"]
 _MODEL_BY_NAME = {config.name: config for config in MODEL_CONFIGS}
 _VALID_PRECISIONS = ("bf16", "fp16", "fp32")
+SCREENING_PROTOCOL_MODELS = {
+    "v1.1": V1_1_MODEL_CONFIGS,
+    "v1.2": V1_2_MODEL_CONFIGS,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,18 +252,23 @@ def default_screening_plan(
     *,
     initialization_seeds: tuple[int, ...] = (101, 102),
     data_seed: int = 20260806,
+    protocol: str = "v1.1",
 ) -> tuple[RunIntent, ...]:
-    """Return the frozen 3-scale × 2-seed, 10M-token screening matrix."""
+    """Return a frozen 3-scale × 2-seed, 10M-token screening matrix."""
 
     if not initialization_seeds or len(initialization_seeds) != len(set(initialization_seeds)):
         raise ValueError("initialization_seeds must be non-empty and unique")
+    try:
+        models = SCREENING_PROTOCOL_MODELS[protocol]
+    except KeyError as exc:
+        raise ValueError(f"unknown screening protocol: {protocol!r}") from exc
     return tuple(
         RunIntent(
-            "v1.1-screen",
+            f"{protocol}-screen",
             model.name,
             initialization_seed,
             data_seed,
         )
-        for model in MODEL_CONFIGS
+        for model in models
         for initialization_seed in initialization_seeds
     )
