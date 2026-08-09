@@ -109,8 +109,9 @@ def resolve_screening_plan_from_preflight(
     *,
     initialization_seeds: tuple[int, ...] = (101, 102),
     data_seed: int = 20260806,
+    protocol: str = "v1.1",
 ) -> tuple[ResolvedRunManifest, ...]:
-    """Resolve all six screening runs from measured, matched-compute cases."""
+    """Resolve a frozen six-run screening protocol from matched-compute cases."""
 
     source = Path(path)
     report = _load_report(source)
@@ -118,6 +119,7 @@ def resolve_screening_plan_from_preflight(
     intents = default_screening_plan(
         initialization_seeds=initialization_seeds,
         data_seed=data_seed,
+        protocol=protocol,
     )
     selected_by_model: dict[str, dict[str, Any]] = {}
     for intent in intents:
