@@ -225,8 +225,9 @@ def save_checkpoint(
         "cuda_rng_states": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
     }
     try:
-        torch.save(payload, temporary)
-        with temporary.open("rb") as handle:
+        with temporary.open("wb") as handle:
+            torch.save(payload, handle)
+            handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, destination)
     finally:
