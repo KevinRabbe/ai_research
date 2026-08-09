@@ -12,6 +12,8 @@ from plural_cognition.boolean_world import (
 )
 from plural_cognition.model import (
     MODEL_CONFIGS,
+    V1_1_MODEL_CONFIGS,
+    V1_2_MODEL_CONFIGS,
     PC_4M,
     DecoderConfig,
     PluralDecoder,
@@ -24,10 +26,19 @@ EXPECTED_PARAMETERS = {
     "PC-4M": 4_741_120,
     "PC-10M": 9_859_840,
     "PC-18M": 17_731_584,
+    "PC-29M": 28_946_176,
+    "PC-44M": 44_093_440,
+    "PC-64M": 63_763_200,
 }
 
 
 def test_exact_parameter_counts() -> None:
+    assert set(EXPECTED_PARAMETERS) == {config.name for config in MODEL_CONFIGS}
+    assert tuple(config.name for config in V1_2_MODEL_CONFIGS) == (
+        "PC-29M",
+        "PC-44M",
+        "PC-64M",
+    )
     for config in MODEL_CONFIGS:
         model = PluralDecoder(config)
         assert expected_parameter_count(config) == EXPECTED_PARAMETERS[
@@ -122,8 +133,8 @@ def test_model_rejects_invalid_inputs() -> None:
         model(torch.tensor([[1, 2]]), torch.ones((1, 2)))
 
 
-def test_all_three_configs_complete_cpu_forward_backward() -> None:
-    for index, config in enumerate(MODEL_CONFIGS):
+def test_original_three_configs_complete_cpu_forward_backward() -> None:
+    for index, config in enumerate(V1_1_MODEL_CONFIGS):
         torch.manual_seed(100 + index)
         model = PluralDecoder(config)
         input_ids = torch.randint(0, config.vocab_size, (1, 8))
