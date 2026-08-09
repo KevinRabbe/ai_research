@@ -21,9 +21,9 @@ def test_default_sweep_is_ordered_and_complete() -> None:
         DEFAULT_MICROBATCHES,
     )
 
-    assert len(cases) == 3 * 2 * 5
+    assert len(cases) == 6 * 2 * 5
     assert cases[0] == SweepCase("pc-4m", 128, 16)
-    assert cases[-1] == SweepCase("pc-18m", 256, 256)
+    assert cases[-1] == SweepCase("pc-64m", 256, 256)
 
 
 def test_sweep_rejects_unknown_duplicate_and_invalid_values() -> None:
