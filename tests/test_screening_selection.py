@@ -2,6 +2,7 @@ import pytest
 
 from plural_cognition.screening_selection import (
     MODEL_ORDER,
+    V1_2_MODEL_ORDER,
     ScreeningRunResult,
     select_screening_scale,
 )
@@ -21,10 +22,10 @@ def _result(model: str, seed: int, exact: float, parse: float = 1.0):
     )
 
 
-def _matrix(values):
+def _matrix(values, model_order=MODEL_ORDER):
     return tuple(
         _result(model, seed, values[model][index])
-        for model in MODEL_ORDER
+        for model in model_order
         for index, seed in enumerate((101, 102))
     )
 
@@ -57,6 +58,23 @@ def test_selects_next_scale_when_smaller_model_is_too_weak() -> None:
     )
 
     assert decision.selected_model == "PC-10M"
+    assert decision.summaries[0].qualifies is False
+    assert decision.summaries[1].qualifies is True
+
+
+def test_v12_selects_smallest_recovery_scale_in_band() -> None:
+    values = {
+        "PC-29M": (0.15, 0.18),
+        "PC-44M": (0.26, 0.31),
+        "PC-64M": (0.42, 0.48),
+    }
+    decision = select_screening_scale(
+        _matrix(values, V1_2_MODEL_ORDER),
+        model_order=V1_2_MODEL_ORDER,
+    )
+
+    assert decision.selected_model == "PC-44M"
+    assert decision.status == "selected"
     assert decision.summaries[0].qualifies is False
     assert decision.summaries[1].qualifies is True
 
