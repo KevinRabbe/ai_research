@@ -49,6 +49,18 @@ class PolicyEvaluation:
             raise ValueError("policy evaluation requires at least one case")
         if self.task_indices != tuple(case.case_index for case in self.cases):
             raise ValueError("policy evaluation task identity is inconsistent")
+        for field in (
+            "exact_accuracy",
+            "mean_semantic_accuracy",
+            "visible_consistency_rate",
+            "invalid_rate",
+            "mean_reasoning_operations",
+            "over_budget_rate",
+        ):
+            value = getattr(self, field)
+            if type(value) not in (int, float):
+                raise ValueError(f"{field} must be numeric")
+            object.__setattr__(self, field, float(value))
         for value in (
             self.exact_accuracy,
             self.mean_semantic_accuracy,
@@ -58,6 +70,10 @@ class PolicyEvaluation:
         ):
             if not 0.0 <= value <= 1.0:
                 raise ValueError("evaluation rates must be in [0, 1]")
+        if self.mean_reasoning_operations < 0.0:
+            raise ValueError("mean reasoning operations must not be negative")
+        if type(self.max_reasoning_operations) is not int or self.max_reasoning_operations < 0:
+            raise ValueError("max reasoning operations must be a non-negative integer")
 
     @property
     def fitness_key(self) -> tuple[float, float, float, float, int, str]:
