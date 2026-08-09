@@ -5,8 +5,14 @@ from plural_cognition.manifest_io import (
     write_dataset_shard_manifest,
     write_execution_manifest,
 )
-from plural_cognition.train_cli import main
+from plural_cognition.train_cli import _progress_bar, main
 from plural_cognition.training_data import TrainingDataConfig
+
+
+def test_progress_bar_reports_percentage_and_step_count() -> None:
+    assert _progress_bar(0, 306, width=10) == "[----------]   0.00% (  0/306 steps)"
+    assert _progress_bar(153, 306, width=10) == "[#####-----]  50.00% (153/306 steps)"
+    assert _progress_bar(306, 306, width=10) == "[##########] 100.00% (306/306 steps)"
 
 
 def test_training_command_dry_run_verifies_exact_shards_without_cuda(tmp_path) -> None:
