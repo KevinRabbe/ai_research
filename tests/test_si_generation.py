@@ -65,6 +65,20 @@ def _artifact(source: GenerationSource) -> TargetFreeGenerationArtifact:
     )
 
 
+def _all_keys(value) -> set[str]:
+    if isinstance(value, dict):
+        keys = set(value)
+        for item in value.values():
+            keys.update(_all_keys(item))
+        return keys
+    if isinstance(value, list):
+        keys: set[str] = set()
+        for item in value:
+            keys.update(_all_keys(item))
+        return keys
+    return set()
+
+
 def test_target_free_artifact_contains_no_target_or_score_fields() -> None:
     artifact = _artifact(GenerationSource("greedy", "greedy", None, None, None))
     payload = artifact.canonical_payload()
@@ -72,8 +86,15 @@ def test_target_free_artifact_contains_no_target_or_score_fields() -> None:
     assert payload["schema"] == "plural-cognition-si-target-free-generation-v1"
     assert payload["generation_git_commit"] == "d" * 40
     assert payload["cases"][0]["expression"] == "V0"
-    assert "target" not in str(payload)
-    assert "accuracy" not in str(payload)
+    forbidden = {
+        "target",
+        "target_expression",
+        "exact_accuracy",
+        "semantic_accuracy",
+        "hidden_score",
+        "fitness",
+    }
+    assert _all_keys(payload).isdisjoint(forbidden)
     assert TargetFreeGenerationArtifact.from_payload(payload) == artifact
 
 
