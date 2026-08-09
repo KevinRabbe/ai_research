@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .experiment import ResolvedRunManifest, RunIntent, resolve_run_intent
-from .screening_selection import MODEL_ORDER
+from .screening_selection import SUPPORTED_MODEL_ORDER
 
 
 def build_initial_population_plan(
@@ -14,7 +14,7 @@ def build_initial_population_plan(
 ) -> tuple[ResolvedRunManifest, ...]:
     """Reuse selected-scale screening runs and add seeds to reach four minds."""
 
-    if selected_model not in MODEL_ORDER:
+    if selected_model not in SUPPORTED_MODEL_ORDER:
         raise ValueError(f"unknown selected model: {selected_model!r}")
     if len(population_seeds) != 4 or len(population_seeds) != len(set(population_seeds)):
         raise ValueError("the initial population requires exactly four unique seeds")
