@@ -8,6 +8,7 @@ from plural_cognition.experiment import OptimizerIntent, RunIntent, resolve_run_
 from plural_cognition.model import DecoderConfig, PluralDecoder
 from plural_cognition.training import (
     TrainingState,
+    _restore_rng_states,
     build_optimizer,
     learning_rate_for_tokens,
     load_checkpoint,
@@ -83,6 +84,25 @@ def test_optimizer_step_rejects_unmatched_compute_geometry() -> None:
             state=TrainingState(),
             device=torch.device("cpu"),
         )
+
+
+def test_restore_rng_states_moves_remapped_cpu_state_back_to_cpu(monkeypatch) -> None:
+    expected = torch.get_rng_state()
+    observed = {}
+
+    class RemappedState:
+        def cpu(self):
+            return expected
+
+    monkeypatch.setattr(
+        torch,
+        "set_rng_state",
+        lambda state: observed.setdefault("state", state),
+    )
+
+    _restore_rng_states(RemappedState(), None)
+
+    assert observed["state"] is expected
 
 
 def test_checkpoint_round_trip_restores_model_optimizer_and_state(tmp_path) -> None:
