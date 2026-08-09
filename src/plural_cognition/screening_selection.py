@@ -1,4 +1,4 @@
-"""Deterministic model-scale selection from the six frozen screening runs."""
+"""Deterministic model-scale selection from frozen screening runs."""
 
 from __future__ import annotations
 
@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from statistics import mean
 from typing import Sequence
 
-MODEL_ORDER = ("PC-4M", "PC-10M", "PC-18M")
+V1_1_MODEL_ORDER = ("PC-4M", "PC-10M", "PC-18M")
+V1_2_MODEL_ORDER = ("PC-29M", "PC-44M", "PC-64M")
+SUPPORTED_MODEL_ORDER = V1_1_MODEL_ORDER + V1_2_MODEL_ORDER
+# Backward-compatible alias for the original frozen selector.
+MODEL_ORDER = V1_1_MODEL_ORDER
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +26,7 @@ class ScreeningRunResult:
     mean_semantic_accuracy: float
 
     def __post_init__(self) -> None:
-        if self.model_name not in MODEL_ORDER:
+        if self.model_name not in SUPPORTED_MODEL_ORDER:
             raise ValueError(f"unknown screening model: {self.model_name!r}")
         if type(self.initialization_seed) is not int:
             raise TypeError("initialization_seed must be int")
@@ -85,6 +89,7 @@ def select_screening_scale(
     results: Sequence[ScreeningRunResult],
     *,
     expected_seeds: tuple[int, ...] = (101, 102),
+    model_order: tuple[str, ...] = MODEL_ORDER,
     minimum_parse_rate: float = 0.95,
     minimum_exact_accuracy: float = 0.20,
     maximum_exact_accuracy: float = 0.70,
@@ -93,18 +98,22 @@ def select_screening_scale(
 
     if len(expected_seeds) < 2 or len(expected_seeds) != len(set(expected_seeds)):
         raise ValueError("expected_seeds must contain at least two unique seeds")
+    if not model_order or len(model_order) != len(set(model_order)):
+        raise ValueError("model_order must contain unique model names")
+    if any(model not in SUPPORTED_MODEL_ORDER for model in model_order):
+        raise ValueError("model_order contains an unsupported model")
     if not 0.0 <= minimum_parse_rate <= 1.0:
         raise ValueError("minimum_parse_rate must be in [0, 1]")
     if not 0.0 <= minimum_exact_accuracy < maximum_exact_accuracy <= 1.0:
         raise ValueError("exact-accuracy band is invalid")
-    expected_count = len(MODEL_ORDER) * len(expected_seeds)
+    expected_count = len(model_order) * len(expected_seeds)
     if len(results) != expected_count:
         raise ValueError(
             f"screening selection requires {expected_count} runs, received {len(results)}"
         )
     identities = {(item.model_name, item.initialization_seed) for item in results}
     expected_identities = {
-        (model, seed) for model in MODEL_ORDER for seed in expected_seeds
+        (model, seed) for model in model_order for seed in expected_seeds
     }
     if identities != expected_identities:
         missing = expected_identities.difference(identities)
@@ -119,7 +128,7 @@ def select_screening_scale(
         raise ValueError("screening runs used different validation shards")
 
     summaries: list[ScaleSummary] = []
-    for model_name in MODEL_ORDER:
+    for model_name in model_order:
         model_results = tuple(
             sorted(
                 (item for item in results if item.model_name == model_name),
@@ -176,7 +185,7 @@ def select_screening_scale(
     if max(exact_means) < minimum_exact_accuracy:
         status = "all-too-weak"
         reasons = (
-            "all three scales are below the minimum exact-accuracy boundary; diagnose representation, supervision, curriculum, or task difficulty before scaling further",
+            "all screening scales are below the minimum exact-accuracy boundary; preserve the negative result and revise one predeclared capability axis before another run",
         )
     elif min(exact_means) > maximum_exact_accuracy:
         status = "task-too-easy"
