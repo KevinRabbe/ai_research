@@ -60,8 +60,8 @@ class TaskSplit(str, Enum):
 class SolverVisibleTask:
     """Exact task material that a mind is allowed to receive.
 
-    Protected tests and evaluator configuration are deliberately absent. The
-    ``TaskIdentity.payload_sha256`` must equal the hash of ``visible_payload``.
+    Protected evaluator inputs, expectations, and configuration are deliberately
+    absent. ``TaskIdentity.payload_sha256`` equals the exact visible-payload hash.
     """
 
     task: TaskIdentity
@@ -178,13 +178,19 @@ class TaskResourceBudget:
 
 @dataclass(frozen=True, slots=True)
 class ProtectedEvaluatorSpec:
-    """Privileged evaluator identity that must never be included in a mind request."""
+    """Privileged evaluator identity excluded from all mind requests.
+
+    Protected inputs may eventually be supplied to candidate code at execution
+    time. Protected expectations remain outside the candidate sandbox and are
+    consumed only by the privileged grader.
+    """
 
     task_id: str
     task_payload_sha256: str
     evaluator_id: str
     evaluator_configuration_sha256: str
-    hidden_tests_sha256: str
+    protected_inputs_sha256: str
+    protected_expectations_sha256: str
     primary_metric: str
     pass_threshold: float
 
@@ -193,7 +199,10 @@ class ProtectedEvaluatorSpec:
         _sha256(self.task_payload_sha256, "task_payload_sha256")
         _nonempty(self.evaluator_id, "evaluator_id")
         _sha256(self.evaluator_configuration_sha256, "evaluator_configuration_sha256")
-        _sha256(self.hidden_tests_sha256, "hidden_tests_sha256")
+        _sha256(self.protected_inputs_sha256, "protected_inputs_sha256")
+        _sha256(self.protected_expectations_sha256, "protected_expectations_sha256")
+        if self.protected_inputs_sha256 == self.protected_expectations_sha256:
+            raise ValueError("protected inputs and expectations must be distinct artifacts")
         _nonempty(self.primary_metric, "primary_metric")
         if type(self.pass_threshold) not in (int, float):
             raise TypeError("pass_threshold must be a plain int or float")
@@ -214,7 +223,8 @@ class ProtectedEvaluatorSpec:
             "task_payload_sha256": self.task_payload_sha256,
             "evaluator_id": self.evaluator_id,
             "evaluator_configuration_sha256": self.evaluator_configuration_sha256,
-            "hidden_tests_sha256": self.hidden_tests_sha256,
+            "protected_inputs_sha256": self.protected_inputs_sha256,
+            "protected_expectations_sha256": self.protected_expectations_sha256,
             "primary_metric": self.primary_metric,
             "pass_threshold": float(self.pass_threshold),
         }
