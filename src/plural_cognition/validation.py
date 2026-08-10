@@ -132,11 +132,13 @@ def evaluate_validation_examples(
                 decoded.public.variable_order,
             ).equivalent
             visible = evaluate_visible(generation.expression, decoded.public).consistent
-            semantic_accuracy = 1.0 - semantic_distance(
+            distance = semantic_distance(
                 generation.expression,
                 decoded.target,
                 decoded.public.variable_order,
             )
+            assignment_count = 1 << len(decoded.public.variable_order)
+            semantic_accuracy = 1.0 - (distance / assignment_count)
         else:
             exact = False
             visible = False
