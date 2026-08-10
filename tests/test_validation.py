@@ -4,6 +4,7 @@ import torch
 from torch import nn
 
 from plural_cognition.boolean_world import (
+    Const,
     EvidenceCase,
     PublicTask,
     Var,
@@ -93,6 +94,22 @@ def test_validation_evaluation_scores_fixed_generated_program() -> None:
     assert result.exact_accuracy == 1.0
     assert result.visible_consistency_rate == 1.0
     assert result.mean_semantic_accuracy == 1.0
+
+
+def test_validation_semantic_accuracy_normalizes_truth_table_distance() -> None:
+    decoded = decode_supervised_causal_example(_example())
+    planned = encode_mechanism(Const(True))[2:]
+    model = _ScriptedModel(len(encode_inference_prompt(decoded.public)), planned)
+
+    result = evaluate_validation_examples(
+        model,
+        (_example(),),
+        device=torch.device("cpu"),
+    )
+
+    assert result.parse_rate == 1.0
+    assert result.exact_accuracy == 0.0
+    assert result.mean_semantic_accuracy == 0.5
 
 
 def test_sampled_validation_is_reproducible_and_index_addressed() -> None:
