@@ -84,3 +84,23 @@ def test_v12_scale_selection_command_uses_recovery_order(tmp_path) -> None:
         "PC-44M",
         "PC-64M",
     ]
+
+
+def test_t20m_scale_selection_keeps_v12_order_and_frozen_gate(tmp_path) -> None:
+    payload = _run_selection(
+        tmp_path,
+        {
+            "PC-29M": (0.18, 0.19),
+            "PC-44M": (0.24, 0.28),
+            "PC-64M": (0.42, 0.48),
+        },
+        protocol="v1.2-t20m",
+    )
+
+    assert payload["selected"] is True
+    assert payload["selected_model"] == "PC-44M"
+    assert [item["model_name"] for item in payload["summaries"]] == [
+        "PC-29M",
+        "PC-44M",
+        "PC-64M",
+    ]
