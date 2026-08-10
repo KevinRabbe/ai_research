@@ -1,4 +1,4 @@
-"""Prepare the predeclared 20M-token recovery screening protocol."""
+"""Prepare predeclared training-horizon recovery screening protocols."""
 
 from __future__ import annotations
 
@@ -22,47 +22,86 @@ T20M_CHECKPOINT_TOKENS = (
     20_000_000,
 )
 
+T30M_EXPERIMENT_NAME = "v1.2-t30m-screen"
+T30M_TOKEN_BUDGET = 30_000_000
+T30M_CHECKPOINT_TOKENS = (
+    1_000_000,
+    2_000_000,
+    5_000_000,
+    10_000_000,
+    15_000_000,
+    20_000_000,
+    25_000_000,
+    30_000_000,
+)
 
-def t20m_screening_intents(
+
+def _screening_intents(
     *,
-    initialization_seeds: tuple[int, ...] = (101, 102),
-    data_seed: int = 20260806,
+    experiment_name: str,
+    token_budget: int,
+    checkpoint_tokens: tuple[int, ...],
+    initialization_seeds: tuple[int, ...],
+    data_seed: int,
 ) -> tuple[RunIntent, ...]:
-    """Return the frozen V1.2 capacity matrix with only token budget increased."""
-
     if not initialization_seeds or len(initialization_seeds) != len(
         set(initialization_seeds)
     ):
         raise ValueError("initialization_seeds must be non-empty and unique")
     return tuple(
         RunIntent(
-            T20M_EXPERIMENT_NAME,
+            experiment_name,
             model.name,
             seed,
             data_seed,
-            token_budget=T20M_TOKEN_BUDGET,
-            checkpoint_tokens=T20M_CHECKPOINT_TOKENS,
+            token_budget=token_budget,
+            checkpoint_tokens=checkpoint_tokens,
         )
         for model in V1_2_MODEL_CONFIGS
         for seed in initialization_seeds
     )
 
 
-def resolve_t20m_screening_plan_from_preflight(
-    path: str | Path,
+def t20m_screening_intents(
     *,
     initialization_seeds: tuple[int, ...] = (101, 102),
     data_seed: int = 20260806,
-) -> tuple[ResolvedRunManifest, ...]:
-    """Resolve the 20M recovery matrix from one exact CUDA preflight report."""
+) -> tuple[RunIntent, ...]:
+    """Return the frozen V1.2 capacity matrix under the 20M training horizon."""
 
-    source = Path(path)
-    report = _load_report(source)
-    digest = _file_sha256(source)
-    intents = t20m_screening_intents(
+    return _screening_intents(
+        experiment_name=T20M_EXPERIMENT_NAME,
+        token_budget=T20M_TOKEN_BUDGET,
+        checkpoint_tokens=T20M_CHECKPOINT_TOKENS,
         initialization_seeds=initialization_seeds,
         data_seed=data_seed,
     )
+
+
+def t30m_screening_intents(
+    *,
+    initialization_seeds: tuple[int, ...] = (101, 102),
+    data_seed: int = 20260806,
+) -> tuple[RunIntent, ...]:
+    """Return the frozen V1.2 capacity matrix under the 30M training horizon."""
+
+    return _screening_intents(
+        experiment_name=T30M_EXPERIMENT_NAME,
+        token_budget=T30M_TOKEN_BUDGET,
+        checkpoint_tokens=T30M_CHECKPOINT_TOKENS,
+        initialization_seeds=initialization_seeds,
+        data_seed=data_seed,
+    )
+
+
+def _resolve_screening_plan_from_preflight(
+    path: str | Path,
+    *,
+    intents: tuple[RunIntent, ...],
+) -> tuple[ResolvedRunManifest, ...]:
+    source = Path(path)
+    report = _load_report(source)
+    digest = _file_sha256(source)
     selected_by_model: dict[str, dict] = {}
     for intent in intents:
         selected_by_model.setdefault(
@@ -89,10 +128,45 @@ def resolve_t20m_screening_plan_from_preflight(
     )
 
 
-def _parser() -> argparse.ArgumentParser:
+def resolve_t20m_screening_plan_from_preflight(
+    path: str | Path,
+    *,
+    initialization_seeds: tuple[int, ...] = (101, 102),
+    data_seed: int = 20260806,
+) -> tuple[ResolvedRunManifest, ...]:
+    """Resolve the 20M recovery matrix from one exact CUDA preflight report."""
+
+    return _resolve_screening_plan_from_preflight(
+        path,
+        intents=t20m_screening_intents(
+            initialization_seeds=initialization_seeds,
+            data_seed=data_seed,
+        ),
+    )
+
+
+def resolve_t30m_screening_plan_from_preflight(
+    path: str | Path,
+    *,
+    initialization_seeds: tuple[int, ...] = (101, 102),
+    data_seed: int = 20260806,
+) -> tuple[ResolvedRunManifest, ...]:
+    """Resolve the 30M recovery matrix from one exact CUDA preflight report."""
+
+    return _resolve_screening_plan_from_preflight(
+        path,
+        intents=t30m_screening_intents(
+            initialization_seeds=initialization_seeds,
+            data_seed=data_seed,
+        ),
+    )
+
+
+def _parser(*, token_budget_label: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Resolve the frozen PC-29M/44M/64M recovery screen at 20M training tokens."
+            "Resolve the frozen PC-29M/44M/64M recovery screen at "
+            f"{token_budget_label} training tokens."
         )
     )
     parser.add_argument("--preflight", type=Path, required=True)
@@ -104,11 +178,17 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def resolve_t20m_screening_main(argv: Sequence[str] | None = None) -> int:
-    parser = _parser()
+def _resolve_main(
+    argv: Sequence[str] | None,
+    *,
+    token_budget_label: str,
+    protocol_label: str,
+    resolver,
+) -> int:
+    parser = _parser(token_budget_label=token_budget_label)
     args = parser.parse_args(argv)
     try:
-        runs = resolve_t20m_screening_plan_from_preflight(
+        runs = resolver(
             args.preflight,
             initialization_seeds=tuple(args.initialization_seeds),
             data_seed=args.data_seed,
@@ -118,7 +198,7 @@ def resolve_t20m_screening_main(argv: Sequence[str] | None = None) -> int:
         parser.exit(2, f"error: {exc}\n")
     print(
         f"wrote {args.output} with {len(runs)} resolved runs "
-        f"protocol=v1.2-t20m"
+        f"protocol={protocol_label}"
     )
     for run in runs:
         print(
@@ -128,6 +208,24 @@ def resolve_t20m_screening_main(argv: Sequence[str] | None = None) -> int:
             f"token_budget={run.intent.token_budget}"
         )
     return 0
+
+
+def resolve_t20m_screening_main(argv: Sequence[str] | None = None) -> int:
+    return _resolve_main(
+        argv,
+        token_budget_label="20M",
+        protocol_label="v1.2-t20m",
+        resolver=resolve_t20m_screening_plan_from_preflight,
+    )
+
+
+def resolve_t30m_screening_main(argv: Sequence[str] | None = None) -> int:
+    return _resolve_main(
+        argv,
+        token_budget_label="30M",
+        protocol_label="v1.2-t30m",
+        resolver=resolve_t30m_screening_plan_from_preflight,
+    )
 
 
 if __name__ == "__main__":
