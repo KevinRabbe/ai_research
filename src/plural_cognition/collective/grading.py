@@ -125,6 +125,13 @@ class BlackBoxEvaluationPlan:
         case_ids = tuple(case.case_id for case in self.cases)
         if case_ids != tuple(sorted(case_ids)) or len(case_ids) != len(set(case_ids)):
             raise ValueError("protected cases must be sorted by unique case_id")
+        if self.comparison_mode is ComparisonMode.EXACT_BYTES:
+            if self.evaluator.primary_metric != "exact_accuracy":
+                raise ValueError(
+                    "exact-bytes-v1 requires primary_metric='exact_accuracy'"
+                )
+            if not 0.0 <= float(self.evaluator.pass_threshold) <= 1.0:
+                raise ValueError("exact_accuracy pass_threshold must be in [0, 1]")
         if protected_input_set_sha256(self.cases) != self.evaluator.protected_inputs_sha256:
             raise ValueError("protected input-set identity differs from evaluator spec")
         if (
