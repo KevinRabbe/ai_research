@@ -2,6 +2,7 @@
 
 This module deliberately defines no host executor. Concrete runners must live
 behind ``SandboxRunner`` and satisfy these immutable request/result contracts.
+Protected expected outputs are intentionally absent from ``SandboxRequest``.
 """
 
 from __future__ import annotations
@@ -135,13 +136,18 @@ class ProtectedSandboxSpec:
 
 @dataclass(frozen=True, slots=True)
 class SandboxRequest:
-    """Privileged request to evaluate one immutable patch in a fresh workspace."""
+    """Request to execute one frozen candidate on one input artifact.
+
+    ``runtime_input_sha256`` may identify protected *inputs* supplied at execution
+    time. Protected expected outputs/labels never enter this request and remain in
+    the privileged grader process.
+    """
 
     task: TaskIdentity
     submission_sha256: str
     buggy_repository_sha256: str
     patch_sha256: str
-    hidden_tests_sha256: str
+    runtime_input_sha256: str
     sandbox_spec_sha256: str
 
     def __post_init__(self) -> None:
@@ -151,7 +157,7 @@ class SandboxRequest:
             self.submission_sha256,
             self.buggy_repository_sha256,
             self.patch_sha256,
-            self.hidden_tests_sha256,
+            self.runtime_input_sha256,
             self.sandbox_spec_sha256,
         ):
             validate_sha256(digest)
@@ -163,7 +169,7 @@ class SandboxRequest:
             "submission_sha256": self.submission_sha256,
             "buggy_repository_sha256": self.buggy_repository_sha256,
             "patch_sha256": self.patch_sha256,
-            "hidden_tests_sha256": self.hidden_tests_sha256,
+            "runtime_input_sha256": self.runtime_input_sha256,
             "sandbox_spec_sha256": self.sandbox_spec_sha256,
         }
 
@@ -174,7 +180,7 @@ class SandboxRequest:
 
 @dataclass(frozen=True, slots=True)
 class SandboxResult:
-    """Immutable result returned by a concrete isolated runner."""
+    """Immutable candidate-execution result returned by an isolated runner."""
 
     request_sha256: str
     exit_code: int | None
