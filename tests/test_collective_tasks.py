@@ -15,6 +15,7 @@ SHA_B = "b" * 64
 SHA_C = "c" * 64
 SHA_D = "d" * 64
 SHA_E = "e" * 64
+REV = "1" * 40
 
 
 def test_solver_visible_task_binds_exact_payload() -> None:
@@ -82,12 +83,14 @@ def test_protected_evaluator_binds_without_entering_visible_task() -> None:
         task_payload_sha256=task.task.payload_sha256,
         evaluator_id="black-box-grader-v0",
         evaluator_configuration_sha256=SHA_C,
+        evaluator_software_revision=REV,
         protected_inputs_sha256=SHA_D,
         protected_expectations_sha256=SHA_E,
         primary_metric="pass_fraction",
         pass_threshold=1.0,
     )
     assert evaluator.binds(task)
+    assert evaluator.canonical_payload()["evaluator_software_revision"] == REV
     visible = task.canonical_payload()["visible"]
     assert "protected_inputs_sha256" not in visible
     assert "protected_expectations_sha256" not in visible
@@ -100,8 +103,24 @@ def test_protected_inputs_and_expectations_must_be_distinct() -> None:
             task_payload_sha256=SHA_A,
             evaluator_id="grader",
             evaluator_configuration_sha256=SHA_B,
+            evaluator_software_revision=REV,
             protected_inputs_sha256=SHA_C,
             protected_expectations_sha256=SHA_C,
+            primary_metric="score",
+            pass_threshold=1.0,
+        )
+
+
+def test_protected_evaluator_requires_full_software_revision() -> None:
+    with pytest.raises(ValueError, match="40-character"):
+        ProtectedEvaluatorSpec(
+            task_id="repo-fix-001",
+            task_payload_sha256=SHA_A,
+            evaluator_id="grader",
+            evaluator_configuration_sha256=SHA_B,
+            evaluator_software_revision="abc",
+            protected_inputs_sha256=SHA_C,
+            protected_expectations_sha256=SHA_D,
             primary_metric="score",
             pass_threshold=1.0,
         )
