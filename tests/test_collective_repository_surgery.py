@@ -43,8 +43,9 @@ def _record(*, clean_repository_sha256: str = A, buggy_repository_sha256: str = 
         buggy_repository_sha256=buggy_repository_sha256,
         issue_prompt_sha256=C,
         public_tests_sha256=D,
-        hidden_tests_sha256=E,
-        gold_patch_sha256=F,
+        protected_inputs_sha256=E,
+        protected_expectations_sha256=F,
+        gold_patch_sha256="9" * 64,
     )
 
 
@@ -54,7 +55,9 @@ def test_generation_record_binds_exact_visible_task() -> None:
     assert record.binds(task)
     assert len(record.sha256) == 64
     assert record.canonical_payload()["generator_software_revision"] == REV
-    assert "hidden_tests_sha256" not in task.canonical_payload()["visible"]
+    visible = task.canonical_payload()["visible"]
+    assert "protected_inputs_sha256" not in visible
+    assert "protected_expectations_sha256" not in visible
 
 
 def test_generation_record_rejects_noop_mutation() -> None:
@@ -77,8 +80,30 @@ def test_generation_record_requires_full_generator_revision() -> None:
             buggy_repository_sha256=B,
             issue_prompt_sha256=C,
             public_tests_sha256=D,
-            hidden_tests_sha256=E,
-            gold_patch_sha256=F,
+            protected_inputs_sha256=E,
+            protected_expectations_sha256=F,
+            gold_patch_sha256="9" * 64,
+        )
+
+
+def test_generation_record_requires_distinct_protected_labels() -> None:
+    task, _ = _record()
+    with pytest.raises(ValueError, match="distinct"):
+        RepositorySurgeryGenerationRecord(
+            task_id=task.task.task_id,
+            task_payload_sha256=task.task.payload_sha256,
+            split=task.split,
+            generation_seed=1,
+            mutation_kind=MutationKind.LOCAL_LOGIC,
+            mutation_configuration_sha256=A,
+            generator_software_revision=REV,
+            clean_repository_sha256=A,
+            buggy_repository_sha256=B,
+            issue_prompt_sha256=C,
+            public_tests_sha256=D,
+            protected_inputs_sha256=E,
+            protected_expectations_sha256=E,
+            gold_patch_sha256="9" * 64,
         )
 
 
