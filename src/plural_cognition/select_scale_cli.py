@@ -112,7 +112,11 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Select the smallest V1 model in the frozen capability band."
     )
-    parser.add_argument("--protocol", choices=("v1.1", "v1.2"), default="v1.1")
+    parser.add_argument(
+        "--protocol",
+        choices=("v1.1", "v1.2", "v1.2-t20m"),
+        default="v1.1",
+    )
     parser.add_argument(
         "--result",
         nargs=3,
