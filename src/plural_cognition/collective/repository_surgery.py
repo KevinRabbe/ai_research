@@ -36,6 +36,17 @@ def _positive_int(value: int, field: str) -> None:
         raise ValueError(f"{field} must be a positive integer")
 
 
+def _git_revision(value: str) -> None:
+    if type(value) is not str or len(value) != 40:
+        raise ValueError("generator_software_revision must be a full 40-character Git SHA")
+    try:
+        int(value, 16)
+    except ValueError as exc:
+        raise ValueError("generator_software_revision must be hexadecimal") from exc
+    if value != value.lower():
+        raise ValueError("generator_software_revision must use lowercase hexadecimal")
+
+
 class MutationKind(str, Enum):
     LOCAL_LOGIC = "local-logic"
     BOUNDARY = "boundary"
@@ -61,6 +72,7 @@ class RepositorySurgeryGenerationRecord:
     generation_seed: int
     mutation_kind: MutationKind
     mutation_configuration_sha256: str
+    generator_software_revision: str
     clean_repository_sha256: str
     buggy_repository_sha256: str
     issue_prompt_sha256: str
@@ -86,6 +98,7 @@ class RepositorySurgeryGenerationRecord:
             self.gold_patch_sha256,
         ):
             validate_sha256(digest)
+        _git_revision(self.generator_software_revision)
         if self.public_tests_sha256 is not None:
             validate_sha256(self.public_tests_sha256)
         if self.clean_repository_sha256 == self.buggy_repository_sha256:
@@ -113,6 +126,7 @@ class RepositorySurgeryGenerationRecord:
             "generation_seed": self.generation_seed,
             "mutation_kind": self.mutation_kind.value,
             "mutation_configuration_sha256": self.mutation_configuration_sha256,
+            "generator_software_revision": self.generator_software_revision,
             "clean_repository_sha256": self.clean_repository_sha256,
             "buggy_repository_sha256": self.buggy_repository_sha256,
             "issue_prompt_sha256": self.issue_prompt_sha256,
