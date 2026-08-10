@@ -73,7 +73,7 @@ def test_environment_must_be_sorted_and_unique() -> None:
         )
 
 
-def test_sandbox_request_binds_patch_hidden_tests_and_spec() -> None:
+def test_sandbox_request_binds_runtime_input_but_not_expectations() -> None:
     task = TaskIdentity("rs-001", "repository-surgery-v0", A)
     spec = _spec()
     request = SandboxRequest(
@@ -81,11 +81,14 @@ def test_sandbox_request_binds_patch_hidden_tests_and_spec() -> None:
         submission_sha256=B,
         buggy_repository_sha256=C,
         patch_sha256=D,
-        hidden_tests_sha256=E,
+        runtime_input_sha256=E,
         sandbox_spec_sha256=spec.sha256,
     )
     assert len(request.sha256) == 64
-    assert request.canonical_payload()["hidden_tests_sha256"] == E
+    payload = request.canonical_payload()
+    assert payload["runtime_input_sha256"] == E
+    assert "protected_expectations_sha256" not in payload
+    assert "hidden_tests_sha256" not in payload
 
 
 def test_sandbox_result_rejects_exit_code_on_timeout() -> None:
