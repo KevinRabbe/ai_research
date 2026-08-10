@@ -104,3 +104,23 @@ def test_t20m_scale_selection_keeps_v12_order_and_frozen_gate(tmp_path) -> None:
         "PC-44M",
         "PC-64M",
     ]
+
+
+def test_t30m_scale_selection_keeps_v12_order_and_frozen_gate(tmp_path) -> None:
+    payload = _run_selection(
+        tmp_path,
+        {
+            "PC-29M": (0.20, 0.22),
+            "PC-44M": (0.30, 0.34),
+            "PC-64M": (0.44, 0.50),
+        },
+        protocol="v1.2-t30m",
+    )
+
+    assert payload["selected"] is True
+    assert payload["selected_model"] == "PC-29M"
+    assert [item["model_name"] for item in payload["summaries"]] == [
+        "PC-29M",
+        "PC-44M",
+        "PC-64M",
+    ]
