@@ -38,6 +38,17 @@ def _sha256(value: str, field: str) -> None:
         raise ValueError(f"{field} must use lowercase hexadecimal")
 
 
+def _git_revision(value: str, field: str) -> None:
+    if type(value) is not str or len(value) != 40:
+        raise ValueError(f"{field} must be a full 40-character Git SHA")
+    try:
+        int(value, 16)
+    except ValueError as exc:
+        raise ValueError(f"{field} must be hexadecimal") from exc
+    if value != value.lower():
+        raise ValueError(f"{field} must use lowercase hexadecimal")
+
+
 def _nonnegative_int(value: int, field: str) -> None:
     if type(value) is not int or value < 0:
         raise ValueError(f"{field} must be a non-negative integer")
@@ -189,6 +200,7 @@ class ProtectedEvaluatorSpec:
     task_payload_sha256: str
     evaluator_id: str
     evaluator_configuration_sha256: str
+    evaluator_software_revision: str
     protected_inputs_sha256: str
     protected_expectations_sha256: str
     primary_metric: str
@@ -199,6 +211,7 @@ class ProtectedEvaluatorSpec:
         _sha256(self.task_payload_sha256, "task_payload_sha256")
         _nonempty(self.evaluator_id, "evaluator_id")
         _sha256(self.evaluator_configuration_sha256, "evaluator_configuration_sha256")
+        _git_revision(self.evaluator_software_revision, "evaluator_software_revision")
         _sha256(self.protected_inputs_sha256, "protected_inputs_sha256")
         _sha256(self.protected_expectations_sha256, "protected_expectations_sha256")
         if self.protected_inputs_sha256 == self.protected_expectations_sha256:
@@ -223,6 +236,7 @@ class ProtectedEvaluatorSpec:
             "task_payload_sha256": self.task_payload_sha256,
             "evaluator_id": self.evaluator_id,
             "evaluator_configuration_sha256": self.evaluator_configuration_sha256,
+            "evaluator_software_revision": self.evaluator_software_revision,
             "protected_inputs_sha256": self.protected_inputs_sha256,
             "protected_expectations_sha256": self.protected_expectations_sha256,
             "primary_metric": self.primary_metric,
