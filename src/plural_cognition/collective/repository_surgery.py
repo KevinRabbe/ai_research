@@ -77,7 +77,8 @@ class RepositorySurgeryGenerationRecord:
     buggy_repository_sha256: str
     issue_prompt_sha256: str
     public_tests_sha256: str | None
-    hidden_tests_sha256: str
+    protected_inputs_sha256: str
+    protected_expectations_sha256: str
     gold_patch_sha256: str
 
     def __post_init__(self) -> None:
@@ -94,7 +95,8 @@ class RepositorySurgeryGenerationRecord:
             self.clean_repository_sha256,
             self.buggy_repository_sha256,
             self.issue_prompt_sha256,
-            self.hidden_tests_sha256,
+            self.protected_inputs_sha256,
+            self.protected_expectations_sha256,
             self.gold_patch_sha256,
         ):
             validate_sha256(digest)
@@ -103,6 +105,8 @@ class RepositorySurgeryGenerationRecord:
             validate_sha256(self.public_tests_sha256)
         if self.clean_repository_sha256 == self.buggy_repository_sha256:
             raise ValueError("buggy repository must differ from clean repository")
+        if self.protected_inputs_sha256 == self.protected_expectations_sha256:
+            raise ValueError("protected inputs and expectations must be distinct")
 
     def binds(self, task: SolverVisibleTask) -> bool:
         if not isinstance(task, SolverVisibleTask):
@@ -131,7 +135,8 @@ class RepositorySurgeryGenerationRecord:
             "buggy_repository_sha256": self.buggy_repository_sha256,
             "issue_prompt_sha256": self.issue_prompt_sha256,
             "public_tests_sha256": self.public_tests_sha256,
-            "hidden_tests_sha256": self.hidden_tests_sha256,
+            "protected_inputs_sha256": self.protected_inputs_sha256,
+            "protected_expectations_sha256": self.protected_expectations_sha256,
             "gold_patch_sha256": self.gold_patch_sha256,
         }
 
