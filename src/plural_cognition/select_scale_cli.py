@@ -114,7 +114,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--protocol",
-        choices=("v1.1", "v1.2", "v1.2-t20m"),
+        choices=("v1.1", "v1.2", "v1.2-t20m", "v1.2-t30m"),
         default="v1.1",
     )
     parser.add_argument(
