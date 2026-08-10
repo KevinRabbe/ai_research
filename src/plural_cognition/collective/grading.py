@@ -71,6 +71,34 @@ class ProtectedCase:
         }
 
 
+def protected_input_set_sha256(cases: Sequence[ProtectedCase]) -> str:
+    return sha256(
+        _canonical_json_bytes(
+            [
+                {
+                    "case_id": case.case_id,
+                    "runtime_input_sha256": case.runtime_input_sha256,
+                }
+                for case in cases
+            ]
+        )
+    ).hexdigest()
+
+
+def protected_expectation_set_sha256(cases: Sequence[ProtectedCase]) -> str:
+    return sha256(
+        _canonical_json_bytes(
+            [
+                {
+                    "case_id": case.case_id,
+                    "expected_output_sha256": case.expected_output_sha256,
+                }
+                for case in cases
+            ]
+        )
+    ).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class BlackBoxEvaluationPlan:
     """Privileged, immutable case set and deterministic comparison policy."""
@@ -97,32 +125,12 @@ class BlackBoxEvaluationPlan:
         case_ids = tuple(case.case_id for case in self.cases)
         if case_ids != tuple(sorted(case_ids)) or len(case_ids) != len(set(case_ids)):
             raise ValueError("protected cases must be sorted by unique case_id")
-
-        input_set_sha256 = sha256(
-            _canonical_json_bytes(
-                [
-                    {
-                        "case_id": case.case_id,
-                        "runtime_input_sha256": case.runtime_input_sha256,
-                    }
-                    for case in self.cases
-                ]
-            )
-        ).hexdigest()
-        expectation_set_sha256 = sha256(
-            _canonical_json_bytes(
-                [
-                    {
-                        "case_id": case.case_id,
-                        "expected_output_sha256": case.expected_output_sha256,
-                    }
-                    for case in self.cases
-                ]
-            )
-        ).hexdigest()
-        if input_set_sha256 != self.evaluator.protected_inputs_sha256:
+        if protected_input_set_sha256(self.cases) != self.evaluator.protected_inputs_sha256:
             raise ValueError("protected input-set identity differs from evaluator spec")
-        if expectation_set_sha256 != self.evaluator.protected_expectations_sha256:
+        if (
+            protected_expectation_set_sha256(self.cases)
+            != self.evaluator.protected_expectations_sha256
+        ):
             raise ValueError("protected expectation-set identity differs from evaluator spec")
 
     def canonical_payload(self) -> dict[str, Any]:
@@ -261,7 +269,7 @@ def grade_black_box(
         task=plan.task,
         evaluator_id=plan.evaluator.evaluator_id,
         evaluator_configuration_sha256=plan.evaluator.evaluator_configuration_sha256,
-        evaluator_software_revision="0" * 40,
+        evaluator_software_revision=plan.evaluator.evaluator_software_revision,
         visibility=EvaluationVisibility.PROTECTED,
         metrics=(
             MetricValue("exact_accuracy", exact_accuracy),
