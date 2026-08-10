@@ -51,12 +51,46 @@ def _fixture(tmp_path: Path):
     return store, task, cases, BlackBoxEvaluationPlan(task, evaluator, cases)
 
 
+def _evaluator(task: TaskIdentity, cases, *, primary_metric: str, pass_threshold: float):
+    return ProtectedEvaluatorSpec(
+        task_id=task.task_id,
+        task_payload_sha256=task.payload_sha256,
+        evaluator_id="black-box-exact-v0",
+        evaluator_configuration_sha256="b" * 64,
+        evaluator_software_revision=REV,
+        protected_inputs_sha256=protected_input_set_sha256(cases),
+        protected_expectations_sha256=protected_expectation_set_sha256(cases),
+        primary_metric=primary_metric,
+        pass_threshold=pass_threshold,
+    )
+
+
 def test_black_box_plan_binds_separate_input_and_expectation_sets(tmp_path: Path) -> None:
     _, _, cases, plan = _fixture(tmp_path)
     assert len(plan.sha256) == 64
     assert plan.evaluator.protected_inputs_sha256 == protected_input_set_sha256(cases)
     assert plan.evaluator.protected_expectations_sha256 == protected_expectation_set_sha256(cases)
     assert plan.evaluator.protected_inputs_sha256 != plan.evaluator.protected_expectations_sha256
+
+
+def test_black_box_plan_rejects_wrong_primary_metric(tmp_path: Path) -> None:
+    _, task, cases, _ = _fixture(tmp_path)
+    with pytest.raises(ValueError, match="primary_metric='exact_accuracy'"):
+        BlackBoxEvaluationPlan(
+            task,
+            _evaluator(task, cases, primary_metric="valid_rate", pass_threshold=1.0),
+            cases,
+        )
+
+
+def test_black_box_plan_rejects_out_of_range_accuracy_threshold(tmp_path: Path) -> None:
+    _, task, cases, _ = _fixture(tmp_path)
+    with pytest.raises(ValueError, match="pass_threshold"):
+        BlackBoxEvaluationPlan(
+            task,
+            _evaluator(task, cases, primary_metric="exact_accuracy", pass_threshold=1.1),
+            cases,
+        )
 
 
 def test_grader_compares_expectations_outside_observations(tmp_path: Path) -> None:
