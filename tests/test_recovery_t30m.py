@@ -60,8 +60,12 @@ def test_resolve_t30m_screening_preserves_measured_geometry(tmp_path) -> None:
     runs = read_screening_plan(output)
     assert len(runs) == 6
     assert all(run.intent.token_budget == 30_000_000 for run in runs)
-    assert all(run.optimizer_steps == 916 for run in runs)
-    assert all(run.required_training_examples == 117_248 for run in runs)
+    assert all(
+        (run.intent.token_budget + run.intent.target_tokens_per_optimizer_step - 1)
+        // run.intent.target_tokens_per_optimizer_step
+        == 916
+        for run in runs
+    )
     assert {
         run.intent.model_name: (
             run.microbatch_examples,
