@@ -24,6 +24,10 @@ manipulates the score instead of repairing the task
 
 Therefore a protected evaluator must treat every candidate patch and every resulting repository as untrusted.
 
+A second threat is subtler: if expected answers, assertion code, or protected labels are copied into the same runtime as candidate code, then a capable candidate can potentially inspect the evaluator rather than solve the intended problem.
+
+The architecture therefore separates **candidate execution** from **privileged grading**.
+
 ## 2. Architectural boundary
 
 The solver process never directly runs a submitted patch.
@@ -34,17 +38,45 @@ solver
 immutable patch artifact
   ↓
 protected evaluator
-  ↓
-SandboxRunner interface
-  ↓
-concrete isolated runtime (later)
+  ├─ candidate execution domain
+  │    ↓
+  │  SandboxRunner interface
+  │    ↓
+  │  concrete isolated runtime (later)
+  │    ↓
+  │  observed output
+  │
+  └─ privileged grading domain
+       protected expectation
+       + observed output
+       ↓
+       score / pass-fail
 ```
 
-The concrete runtime is intentionally replaceable.
+The concrete execution runtime is intentionally replaceable.
 
 The scientific contract is defined independently of Docker, a VM, an operating-system sandbox, or a remote execution service.
 
-## 3. Frozen sandbox specification
+## 3. Core secrecy rule
+
+Protected **inputs** and protected **expectations** are distinct artifacts.
+
+A protected input may be supplied to candidate code at execution time.
+
+The corresponding protected expectation, label, reference output, scoring rule, and promotion state remain outside the candidate sandbox.
+
+Therefore:
+
+```text
+candidate sandbox may know:     x
+privileged grader alone knows:  expected(x)
+```
+
+Input secrecy is not the primary guarantee.
+
+**Expectation secrecy and evaluator integrity are.**
+
+## 4. Frozen sandbox specification
 
 A `ProtectedSandboxSpec` commits to:
 
@@ -66,7 +98,7 @@ disabled
 
 The command is represented as an argv vector rather than an interpolated shell command.
 
-## 4. Resource limits
+## 5. Resource limits
 
 The common sandbox contract records ceilings for:
 
@@ -84,7 +116,7 @@ A concrete runner may enforce additional restrictions.
 
 Those extra restrictions must be part of its configuration identity rather than remaining undocumented host behavior.
 
-## 5. Protected request
+## 6. Candidate-execution request
 
 A `SandboxRequest` binds:
 
@@ -93,15 +125,26 @@ exact TaskIdentity
 submission SHA-256
 buggy repository snapshot SHA-256
 patch SHA-256
-hidden-test SHA-256
+runtime-input SHA-256
 sandbox-spec SHA-256
 ```
 
-The request belongs to the privileged evaluator domain because it contains the hidden-test identity.
+The request deliberately does **not** contain:
+
+```text
+protected expectation SHA-256
+reference output
+gold patch
+score
+pass threshold
+promotion decision
+```
+
+The request belongs to the protected evaluator workflow, but the concrete candidate runtime receives only the execution material required to produce an observation.
 
 It is never placed into a `MindRequest`.
 
-## 6. Result
+## 7. Candidate-execution result
 
 A `SandboxResult` binds:
 
@@ -118,22 +161,25 @@ Stdout and stderr bytes are stored separately through the content-addressed stor
 
 This keeps arbitrarily large logs outside the result manifest while preserving exact evidence.
 
-## 7. Required properties of a future concrete runner
+`SandboxResult` is **not itself the protected score**. The privileged grader consumes the execution result and the separately stored protected expectation to create the final immutable evaluation record.
+
+## 8. Required properties of a future concrete runner
 
 A concrete `SandboxRunner` is not qualified until it demonstrates at minimum:
 
-1. a fresh workspace for every evaluation;
+1. a fresh workspace for every execution;
 2. no access to the solver process filesystem outside explicitly mounted immutable inputs;
 3. no network access for Repository Surgery v0;
 4. no inherited user credentials, API keys, Git credentials, or repository secrets;
 5. enforceable CPU, memory, process, wall-time, writable-disk, and output ceilings;
 6. deterministic environment-image identity;
 7. explicit capture of stdout, stderr, exit status, and resource use;
-8. complete workspace destruction after evaluation;
-9. no ability for submitted code to modify the hidden evaluator or promotion records;
-10. failure-closed behavior when the sandbox cannot enforce its declared policy.
+8. complete workspace destruction after execution;
+9. no protected expectation, grader code, promotion record, or secret score inside the candidate runtime;
+10. no ability for submitted code to modify privileged grading artifacts;
+11. failure-closed behavior when the sandbox cannot enforce its declared policy.
 
-## 8. Why there is no local executor yet
+## 9. Why there is no local executor yet
 
 A normal subprocess, virtual environment, or temporary directory is useful for reproducibility but is **not** by itself a security boundary against untrusted model-generated code.
 
@@ -141,7 +187,7 @@ The repository therefore does not add a convenience host executor merely to make
 
 The evaluator interface is qualified first. A concrete isolated implementation is selected only after its containment properties can be measured on the target machine.
 
-## 9. Relation to capability attribution
+## 10. Relation to capability attribution
 
 Sandboxing is evaluator infrastructure, not a source of cognitive uplift.
 
@@ -156,7 +202,7 @@ verification reasoning
 
 A slower or more restrictive sandbox must not be mistaken for a change in collective intelligence.
 
-## 10. Current implementation
+## 11. Current implementation
 
 ```text
 src/plural_cognition/collective/sandbox.py
@@ -176,8 +222,16 @@ SandboxRunner protocol
 
 It contains no `subprocess` call and no concrete execution backend.
 
-## 11. Next step
+## 12. Next step
 
-After this interface qualifies, the project can implement and test one concrete isolated runner appropriate to the target machine.
+The next evaluator layer should define the privileged **black-box grader** contract:
+
+```text
+protected expectation artifact
++ SandboxResult / observed output artifact
+→ immutable protected EvaluationRecord
+```
+
+After that contract qualifies, the project can implement and test one concrete isolated runner appropriate to the target machine.
 
 Only after that runner passes containment and deterministic-execution tests should Repository Surgery task generation proceed to actual execution-based calibration.
