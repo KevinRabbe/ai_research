@@ -12,6 +12,16 @@ from .artifacts import (
     TaskIdentity,
     sha256_content,
 )
+from .bakeoff import (
+    BakeoffPlan,
+    CandidateDiagnostic,
+    CandidateModel,
+    CandidateTaskResult,
+    DeploymentClass,
+    PopulationSelection,
+    PopulationSelectionStatus,
+    select_population,
+)
 from .metrics import (
     CollectiveSummary,
     ErrorCorrelation,
@@ -25,12 +35,23 @@ from .metrics import (
     summarize_collective,
 )
 from .mind import MindBackend, MindIdentity, MindInvocationResult, MindRequest
+from .tasks import (
+    ProtectedEvaluatorSpec,
+    SolverVisibleTask,
+    TaskResourceBudget,
+    TaskSplit,
+)
 
 __all__ = [
     "ARTIFACT_SCHEMA",
     "EVALUATION_SCHEMA",
+    "BakeoffPlan",
+    "CandidateDiagnostic",
+    "CandidateModel",
+    "CandidateTaskResult",
     "CollectiveStage",
     "CollectiveSummary",
+    "DeploymentClass",
     "ErrorCorrelation",
     "EvaluationRecord",
     "EvaluationVisibility",
@@ -41,14 +62,21 @@ __all__ = [
     "MindInvocationResult",
     "MindRequest",
     "OutcomeTable",
+    "PopulationSelection",
+    "PopulationSelectionStatus",
+    "ProtectedEvaluatorSpec",
     "ResourceUsage",
+    "SolverVisibleTask",
     "StageArtifact",
     "StageDelta",
     "TaskIdentity",
+    "TaskResourceBudget",
+    "TaskSplit",
     "compare_stages",
     "error_correlation_matrix",
     "evaluate_four_mind_credit",
     "pairwise_error_correlation",
+    "select_population",
     "sha256_content",
     "summarize_collective",
 ]
