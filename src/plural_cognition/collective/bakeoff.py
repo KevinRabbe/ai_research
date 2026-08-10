@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 from itertools import combinations
 from statistics import mean
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
-from .artifacts import ResourceUsage
+from .artifacts import ResourceUsage, TaskIdentity
+from .content_store import validate_sha256
 from .metrics import OutcomeTable, pairwise_error_correlation
 from .mind import MindIdentity
+
+BAKEOFF_PLAN_SCHEMA = "plural-cognition-capable-bakeoff-plan-v1"
+BAKEOFF_RESULT_SCHEMA = "plural-cognition-capable-bakeoff-result-v1"
+
+
+def _canonical_json_bytes(payload: Any) -> bytes:
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
 
 
 class DeploymentClass(str, Enum):
@@ -64,29 +80,46 @@ class CandidateModel:
         if self.candidate_id != self.mind.mind_id:
             raise ValueError("candidate_id must equal mind.mind_id")
 
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "mind": self.mind.canonical_payload(),
+            "deployment_class": self.deployment_class.value,
+            "architecture_class": self.architecture_class,
+            "context_tokens": self.context_tokens,
+            "quantization": self.quantization,
+            "total_parameters": self.total_parameters,
+            "active_parameters": self.active_parameters,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class BakeoffPlan:
-    """Predeclared candidate set, task set, and population-selection rule."""
+    """Predeclared exact task set, candidate set, protocol, and selection rule."""
 
-    task_ids: tuple[str, ...]
+    tasks: tuple[TaskIdentity, ...]
     candidates: tuple[CandidateModel, ...]
+    raw_protocol_sha256: str
+    resource_budget_sha256: str
     min_valid_rate: float = 0.95
     population_size: int = 4
     require_strongest_member: bool = True
 
     def __post_init__(self) -> None:
-        if not self.task_ids:
+        if not self.tasks:
             raise ValueError("at least one selection task is required")
-        if any(type(task_id) is not str or not task_id for task_id in self.task_ids):
-            raise ValueError("task_ids must contain non-empty strings")
-        if len(self.task_ids) != len(set(self.task_ids)):
-            raise ValueError("task_ids must be unique")
+        if any(not isinstance(task, TaskIdentity) for task in self.tasks):
+            raise TypeError("tasks must contain TaskIdentity values")
+        task_ids = tuple(task.task_id for task in self.tasks)
+        if len(task_ids) != len(set(task_ids)):
+            raise ValueError("task IDs must be unique")
         if not self.candidates:
             raise ValueError("at least one candidate is required")
         candidate_ids = tuple(candidate.candidate_id for candidate in self.candidates)
         if len(candidate_ids) != len(set(candidate_ids)):
             raise ValueError("candidate IDs must be unique")
+        validate_sha256(self.raw_protocol_sha256)
+        validate_sha256(self.resource_budget_sha256)
         if type(self.min_valid_rate) not in (int, float):
             raise TypeError("min_valid_rate must be a plain int or float")
         if not 0.0 <= float(self.min_valid_rate) <= 1.0:
@@ -98,11 +131,34 @@ class BakeoffPlan:
         if type(self.require_strongest_member) is not bool:
             raise TypeError("require_strongest_member must be bool")
 
+    @property
+    def task_ids(self) -> tuple[str, ...]:
+        return tuple(task.task_id for task in self.tasks)
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema": BAKEOFF_PLAN_SCHEMA,
+            "tasks": [task.canonical_payload() for task in self.tasks],
+            "candidates": [candidate.canonical_payload() for candidate in self.candidates],
+            "raw_protocol_sha256": self.raw_protocol_sha256,
+            "resource_budget_sha256": self.resource_budget_sha256,
+            "min_valid_rate": float(self.min_valid_rate),
+            "population_size": self.population_size,
+            "require_strongest_member": self.require_strongest_member,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_json_bytes(self.canonical_payload())
+
+    @property
+    def sha256(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
 
 @dataclass(frozen=True, slots=True)
 class CandidateTaskResult:
     candidate_id: str
-    task_id: str
+    task: TaskIdentity
     valid: bool
     passed: bool
     raw_artifact_sha256: str
@@ -112,24 +168,36 @@ class CandidateTaskResult:
     def __post_init__(self) -> None:
         if type(self.candidate_id) is not str or not self.candidate_id:
             raise ValueError("candidate_id must be a non-empty string")
-        if type(self.task_id) is not str or not self.task_id:
-            raise ValueError("task_id must be a non-empty string")
+        if not isinstance(self.task, TaskIdentity):
+            raise TypeError("task must be TaskIdentity")
         if type(self.valid) is not bool or type(self.passed) is not bool:
             raise TypeError("valid and passed must be bool")
         if self.passed and not self.valid:
             raise ValueError("an invalid result cannot be marked passed")
-        for field in ("raw_artifact_sha256", "evaluation_sha256"):
-            value = getattr(self, field)
-            if type(value) is not str or len(value) != 64:
-                raise ValueError(f"{field} must contain 64 lowercase hexadecimal characters")
-            try:
-                int(value, 16)
-            except ValueError as exc:
-                raise ValueError(f"{field} must be hexadecimal") from exc
-            if value != value.lower():
-                raise ValueError(f"{field} must use lowercase hexadecimal")
+        validate_sha256(self.raw_artifact_sha256)
+        validate_sha256(self.evaluation_sha256)
         if not isinstance(self.resources, ResourceUsage):
             raise TypeError("resources must be ResourceUsage")
+
+    @property
+    def task_id(self) -> str:
+        return self.task.task_id
+
+    def canonical_payload(self) -> dict[str, Any]:
+        return {
+            "schema": BAKEOFF_RESULT_SCHEMA,
+            "candidate_id": self.candidate_id,
+            "task": self.task.canonical_payload(),
+            "valid": self.valid,
+            "passed": self.passed,
+            "raw_artifact_sha256": self.raw_artifact_sha256,
+            "evaluation_sha256": self.evaluation_sha256,
+            "resources": self.resources.canonical_payload(),
+        }
+
+    @property
+    def sha256(self) -> str:
+        return sha256(_canonical_json_bytes(self.canonical_payload())).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +214,7 @@ class CandidateDiagnostic:
 @dataclass(frozen=True, slots=True)
 class PopulationSelection:
     status: PopulationSelectionStatus
+    bakeoff_plan_sha256: str
     diagnostics: tuple[CandidateDiagnostic, ...]
     eligible_candidate_ids: tuple[str, ...]
     strongest_candidate_id: str | None
@@ -158,9 +227,13 @@ class PopulationSelection:
 
 @dataclass(frozen=True, slots=True)
 class _IndexedResults:
-    task_ids: tuple[str, ...]
+    tasks: tuple[TaskIdentity, ...]
     candidate_ids: tuple[str, ...]
     by_candidate: dict[str, tuple[CandidateTaskResult, ...]]
+
+    @property
+    def task_ids(self) -> tuple[str, ...]:
+        return tuple(task.task_id for task in self.tasks)
 
     def outcomes(self, candidate_id: str) -> tuple[bool, ...]:
         return tuple(item.valid and item.passed for item in self.by_candidate[candidate_id])
@@ -171,16 +244,22 @@ def _index_results(
     results: Sequence[CandidateTaskResult],
 ) -> _IndexedResults:
     expected_candidates = tuple(candidate.candidate_id for candidate in plan.candidates)
+    expected_tasks = {task.task_id: task for task in plan.tasks}
     expected_pairs = {
-        (candidate_id, task_id)
+        (candidate_id, task.task_id)
         for candidate_id in expected_candidates
-        for task_id in plan.task_ids
+        for task in plan.tasks
     }
     actual: dict[tuple[str, str], CandidateTaskResult] = {}
     for item in results:
         key = (item.candidate_id, item.task_id)
         if key in actual:
             raise ValueError(f"duplicate bakeoff result: {key!r}")
+        expected_task = expected_tasks.get(item.task_id)
+        if expected_task is not None and item.task != expected_task:
+            raise ValueError(
+                f"bakeoff result task payload differs from plan for {item.task_id!r}"
+            )
         actual[key] = item
     if set(actual) != expected_pairs:
         missing = expected_pairs.difference(actual)
@@ -189,15 +268,17 @@ def _index_results(
             f"bakeoff result matrix mismatch: missing={len(missing)}, extra={len(extra)}"
         )
     by_candidate = {
-        candidate_id: tuple(actual[(candidate_id, task_id)] for task_id in plan.task_ids)
+        candidate_id: tuple(
+            actual[(candidate_id, task.task_id)] for task in plan.tasks
+        )
         for candidate_id in expected_candidates
     }
-    return _IndexedResults(plan.task_ids, expected_candidates, by_candidate)
+    return _IndexedResults(plan.tasks, expected_candidates, by_candidate)
 
 
 def _diagnostics(indexed: _IndexedResults) -> tuple[CandidateDiagnostic, ...]:
     result: list[CandidateDiagnostic] = []
-    task_count = len(indexed.task_ids)
+    task_count = len(indexed.tasks)
     for candidate_id in indexed.candidate_ids:
         items = indexed.by_candidate[candidate_id]
         valid_count = sum(item.valid for item in items)
@@ -212,10 +293,7 @@ def _diagnostics(indexed: _IndexedResults) -> tuple[CandidateDiagnostic, ...]:
                 total_accelerator_time_ms=sum(
                     item.resources.accelerator_time_ms for item in items
                 ),
-                total_tokens=sum(
-                    item.resources.input_tokens + item.resources.output_tokens
-                    for item in items
-                ),
+                total_tokens=sum(item.resources.total_tokens for item in items),
             )
         )
     return tuple(result)
@@ -238,8 +316,12 @@ def _table_for(
 ) -> OutcomeTable:
     members = tuple(candidate_ids)
     rows = tuple(
-        tuple(indexed.by_candidate[candidate_id][task_index].valid and indexed.by_candidate[candidate_id][task_index].passed for candidate_id in members)
-        for task_index in range(len(indexed.task_ids))
+        tuple(
+            indexed.by_candidate[candidate_id][task_index].valid
+            and indexed.by_candidate[candidate_id][task_index].passed
+            for candidate_id in members
+        )
+        for task_index in range(len(indexed.tasks))
     )
     return OutcomeTable(indexed.task_ids, members, rows)
 
@@ -252,15 +334,16 @@ def select_population(
 
     Selection is deterministic and lexicographic:
 
-    1. exclude candidates below ``min_valid_rate``;
-    2. identify the strongest eligible individual by pass count, then lower
+    1. require results for the exact content-bound tasks in ``plan``;
+    2. exclude candidates below ``min_valid_rate``;
+    3. identify the strongest eligible individual by pass count, then lower
        accelerator time, lower token use, then candidate ID;
-    3. if configured, require every candidate population to contain that strongest
+    4. if configured, require every candidate population to contain that strongest
        individual so plural uplift cannot be inflated by choosing a weaker anchor;
-    4. maximize oracle-union solved-task count;
-    5. maximize summed individual solved-task counts;
-    6. minimize total accelerator time;
-    7. break remaining ties by candidate IDs.
+    5. maximize oracle-union solved-task count;
+    6. maximize summed individual solved-task counts;
+    7. minimize total accelerator time;
+    8. break remaining ties by candidate IDs.
 
     Error correlation is reported diagnostically but is not used as a tie-breaker
     because it is undefined for constant error vectors.
@@ -278,6 +361,7 @@ def select_population(
     if len(eligible) < plan.population_size:
         return PopulationSelection(
             status=PopulationSelectionStatus.INSUFFICIENT_ELIGIBLE,
+            bakeoff_plan_sha256=plan.sha256,
             diagnostics=diagnostics,
             eligible_candidate_ids=eligible,
             strongest_candidate_id=None,
@@ -300,15 +384,13 @@ def select_population(
 
     coalitions = tuple(combinations(eligible, plan.population_size))
     if plan.require_strongest_member:
-        coalitions = tuple(
-            coalition for coalition in coalitions if strongest in coalition
-        )
+        coalitions = tuple(coalition for coalition in coalitions if strongest in coalition)
     if not coalitions:
         raise AssertionError("eligible population exists but no coalition survived")
 
     def coalition_key(coalition: tuple[str, ...]) -> tuple[int, int, int, tuple[str, ...]]:
         table = _table_for(indexed, coalition)
-        union_count = round(table.oracle_union_score * table.task_count)
+        union_count = sum(any(row) for row in table.outcomes)
         summed_passes = sum(diagnostic_by_id[item].pass_count for item in coalition)
         accelerator_time = sum(
             diagnostic_by_id[item].total_accelerator_time_ms for item in coalition
@@ -319,6 +401,7 @@ def select_population(
     table = _table_for(indexed, selected)
     return PopulationSelection(
         status=PopulationSelectionStatus.SELECTED,
+        bakeoff_plan_sha256=plan.sha256,
         diagnostics=diagnostics,
         eligible_candidate_ids=eligible,
         strongest_candidate_id=strongest,
