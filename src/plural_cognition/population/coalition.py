@@ -79,6 +79,18 @@ class RealizedMemberContribution:
     def score_necessary(self) -> bool:
         return self.full_score_drop > 0.0
 
+    @property
+    def leave_one_out_score_drop(self) -> float:
+        """Artifact-schema alias for the realized full-coalition score drop."""
+
+        return self.full_score_drop
+
+    @property
+    def selected_semantics_changed(self) -> bool:
+        """Artifact-schema alias for whether removing this member changes selection."""
+
+        return self.changes_selected_semantics
+
 
 @dataclass(frozen=True, slots=True)
 class SynthesisCoalitionReport:
