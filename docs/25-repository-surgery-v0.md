@@ -8,7 +8,7 @@ It does not yet claim that the benchmark has been calibrated to the desired diff
 
 ## 1. Purpose
 
-Public coding benchmarks are useful external references, but the first plural-cognition experiment should also have a contamination-resistant task family whose exact generation and hidden evaluation remain under repository control.
+Public coding benchmarks are useful external references, but the first plural-cognition experiment should also have a contamination-resistant task family whose exact generation and protected evaluation remain under repository control.
 
 Repository Surgery v0 uses small Python repositories with deterministic seeded defects:
 
@@ -21,7 +21,11 @@ buggy repository + issue description
         ↓
 model patch
         ↓
-protected tests
+protected black-box inputs
+        ↓
+candidate execution
+        ↓
+privileged grader compares outputs to protected expectations
 ```
 
 The raw-mind bakeoff initially uses repositories small enough to expose through one frozen solver-visible package. Larger repositories, retrieval, terminal use, subagents, and long-running execution belong to the later harness condition.
@@ -114,7 +118,8 @@ It does not contain:
 
 ```text
 clean repository
-hidden tests
+protected runtime inputs
+protected expected outputs
 gold patch
 mutation implementation
 protected evaluator configuration
@@ -131,15 +136,21 @@ split
 generation_seed
 mutation_kind
 mutation_configuration_sha256
+generator_software_revision
 clean_repository_sha256
 buggy_repository_sha256
 issue_prompt_sha256
 public_tests_sha256
-hidden_tests_sha256
+protected_inputs_sha256
+protected_expectations_sha256
 gold_patch_sha256
 ```
 
-This allows complete reproducibility without exposing the target repair to the solver.
+Protected inputs and protected expectations are separate artifacts.
+
+The candidate execution runtime may receive a protected input when the evaluator invokes it. It must not receive the corresponding protected expectation or label.
+
+This allows complete reproducibility without exposing the target repair or the grader's answers to candidate code.
 
 The generation record must bind exactly to the corresponding solver-visible task.
 
@@ -166,6 +177,7 @@ Each concrete mutation added later must be deterministic from:
 source repository identity
 mutation configuration identity
 generation seed
+exact generator software revision
 ```
 
 and must pass task-construction checks before entering calibration.
@@ -174,15 +186,16 @@ and must pass task-construction checks before entering calibration.
 
 A generated task is valid only if all of the following hold:
 
-1. the clean repository passes every public and protected test;
+1. the clean repository produces the expected result on every public and protected input;
 2. the mutated repository differs from the clean repository;
-3. the mutated repository fails at least one protected target test;
+3. the mutated repository produces at least one incorrect protected output;
 4. the gold patch returns the mutated repository to the intended behavior;
-5. the gold patch passes all protected regression tests;
-6. protected tests do not require external network access;
+5. the gold patch produces every protected expected output;
+6. protected execution does not require external network access;
 7. the task does not depend on uncontrolled wall-clock time or nondeterministic external services;
-8. the solver-visible prompt does not expose hidden answers or gold-patch content;
-9. repository and test identities are frozen before candidate-model evaluation.
+8. the solver-visible prompt does not expose protected expectations or gold-patch content;
+9. protected expectations never enter the candidate execution sandbox;
+10. repository, input, expectation, protocol, budget, and generator identities are frozen before candidate-model evaluation.
 
 A mutation that does not produce a real observable failure is rejected rather than retained as an easy task.
 
@@ -208,16 +221,33 @@ Patch bytes live in the content-addressed store.
 
 The patch is not applied in the solver process.
 
-## 9. Protected execution boundary
+## 9. Protected black-box evaluation boundary
 
 Model-generated patches are untrusted code changes.
 
-The eventual evaluator must therefore materialize and execute them inside a separate restricted execution environment rather than directly inside the orchestration process or on an unrestricted host checkout.
-
-The evaluator sequence should be:
+The evaluator is split into two security domains:
 
 ```text
-protected evaluator
+CANDIDATE EXECUTION DOMAIN
+fresh buggy repository
++ submitted patch
++ one protected runtime input
+→ observed output / status
+
+PRIVILEGED GRADING DOMAIN
+observed output
++ protected expected output
+→ pass/fail / metric
+```
+
+The candidate sandbox never receives protected expectation artifacts.
+
+This distinction is stronger than merely hiding test files before inference. If expected answers or assertion logic were copied into the same runtime as candidate code, sufficiently capable code could inspect those files or runtime objects and optimize against the evaluator instead of repairing the program.
+
+The eventual evaluator sequence should be:
+
+```text
+privileged evaluator selects protected input
       ↓
 create fresh isolated task workspace
       ↓
@@ -225,16 +255,20 @@ materialize frozen buggy snapshot
       ↓
 apply submitted patch under path restrictions
       ↓
-run protected deterministic tests
+execute candidate on protected input
       ↓
-collect exit status / test results / resource use
+collect observed output / exit status / resource use
       ↓
-destroy workspace
+destroy candidate workspace
+      ↓
+privileged grader compares observed output to protected expectation
       ↓
 emit immutable evaluation record
 ```
 
-The mutable solver must not receive the protected test bytes, evaluator filesystem, evaluator credentials, or promotion authority.
+The mutable solver and candidate runtime must not receive protected expectations, grader state, evaluator credentials, or promotion authority.
+
+Protected input secrecy is not the core guarantee. **Expectation/label secrecy and evaluator integrity are.**
 
 ## 10. Calibration before freezing selection tasks
 
@@ -297,7 +331,9 @@ concrete mutation implementations
 task generator validation
 canonical prompt construction
 patch parser / path validator
-isolated evaluator interface
+protected input/output case schema
+black-box grader contract
+isolated runner preflight
 calibration-set builder
 ```
 
