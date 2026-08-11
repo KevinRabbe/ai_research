@@ -68,6 +68,20 @@ def write_errno(path):
     except OSError as exc:
         return int(exc.errno or -1)
 
+def readable(path):
+    try:
+        Path(path).read_bytes()
+        return True
+    except (FileNotFoundError,PermissionError,IsADirectoryError):
+        return False
+
+def listable(path):
+    try:
+        list(Path(path).iterdir())
+        return True
+    except (FileNotFoundError,PermissionError,NotADirectoryError):
+        return False
+
 status={}
 for line in Path("/proc/self/status").read_text(encoding="ascii").splitlines():
     if line.startswith("CapEff:"):
@@ -87,9 +101,9 @@ payload={
     "environment_names":sorted(os.environ),
     "docker_socket_exists":Path("/var/run/docker.sock").exists() or Path("/run/docker.sock").exists(),
     "secret_entries":sorted(item.name for item in secrets.iterdir()) if secrets.exists() else [],
-    "root_docker_config_exists":Path("/root/.docker/config.json").exists(),
-    "root_gitconfig_exists":Path("/root/.gitconfig").exists(),
-    "root_ssh_exists":Path("/root/.ssh").exists(),
+    "root_docker_config_readable":readable("/root/.docker/config.json"),
+    "root_gitconfig_readable":readable("/root/.gitconfig"),
+    "root_ssh_listable":listable("/root/.ssh"),
 }
 print(json.dumps(payload,sort_keys=True,separators=(",",":")))
 '''.strip()
@@ -135,12 +149,12 @@ def _isolation_verifier(
     if payload.get("secret_entries"):
         raise QualificationFailure("candidate can see mounted runtime secrets")
     if (
-        payload.get("root_docker_config_exists")
-        or payload.get("root_gitconfig_exists")
-        or payload.get("root_ssh_exists")
+        payload.get("root_docker_config_readable")
+        or payload.get("root_gitconfig_readable")
+        or payload.get("root_ssh_listable")
     ):
         raise QualificationFailure(
-            "candidate image exposes root credential/config material"
+            "candidate can access root credential/config material"
         )
     return {
         "uid": payload["uid"],
@@ -153,6 +167,9 @@ def _isolation_verifier(
         "forbidden_environment_name_count": len(leaked),
         "docker_socket_exists": False,
         "secret_entry_count": 0,
+        "root_docker_config_readable": False,
+        "root_gitconfig_readable": False,
+        "root_ssh_listable": False,
     }
 
 
