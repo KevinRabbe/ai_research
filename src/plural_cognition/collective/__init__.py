@@ -31,6 +31,16 @@ from .content_store import (
     FileContentStore,
     content_sha256,
 )
+from .context_access import (
+    CONTEXT_BUDGET_SCHEMA,
+    CONTEXT_OBSERVATION_SCHEMA,
+    CONTEXT_QUERY_SCHEMA,
+    ContextBackend,
+    ContextBudget,
+    ContextObservation,
+    ContextOperation,
+    ContextQuery,
+)
 from .docker_candidate import (
     DOCKER_INPUT_BUNDLE_SCHEMA,
     DOCKER_RUNNER_CONFIGURATION_SCHEMA,
@@ -129,6 +139,9 @@ __all__ = [
     "BLACK_BOX_OBSERVATION_SCHEMA",
     "BLACK_BOX_PLAN_SCHEMA",
     "COGNITIVE_REFERENCE_SCHEMA",
+    "CONTEXT_BUDGET_SCHEMA",
+    "CONTEXT_OBSERVATION_SCHEMA",
+    "CONTEXT_QUERY_SCHEMA",
     "DOCKER_INPUT_BUNDLE_SCHEMA",
     "DOCKER_RUNNER_CONFIGURATION_SCHEMA",
     "DOCKER_RUNNER_ID",
@@ -157,6 +170,11 @@ __all__ = [
     "ContentIntegrityError",
     "ContentStore",
     "ContentStoreError",
+    "ContextBackend",
+    "ContextBudget",
+    "ContextObservation",
+    "ContextOperation",
+    "ContextQuery",
     "DeploymentClass",
     "DockerCommandPlan",
     "DockerInputBundle",
