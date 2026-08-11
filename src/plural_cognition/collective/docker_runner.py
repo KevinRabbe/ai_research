@@ -24,7 +24,7 @@ from uuid import uuid4
 
 from .artifacts import ResourceUsage
 from .content_store import ContentStore, validate_sha256
-from .docker_bootstrap import BOOTSTRAP_RESULT_SCHEMA
+from .docker_bootstrap_guard import BOOTSTRAP_RESULT_SCHEMA
 from .docker_candidate import (
     DockerRunnerConfiguration,
     build_docker_command_plan,
@@ -294,6 +294,10 @@ class DockerSandboxRunner:
             timed_out = _bool(envelope, "timed_out")
             stdout_limit_exceeded = _bool(envelope, "stdout_limit_exceeded")
             stderr_limit_exceeded = _bool(envelope, "stderr_limit_exceeded")
+            memory_limit_exceeded = _bool(envelope, "memory_limit_exceeded")
+            oom_kill_events = _nonnegative_int(envelope, "oom_kill_events")
+            if memory_limit_exceeded != (oom_kill_events > 0):
+                raise DockerRunnerError("bootstrap OOM fields are inconsistent")
             exit_code = _optional_exit_code(envelope)
             if timed_out and exit_code is not None:
                 raise DockerRunnerError("timed-out candidate reported an exit code")
@@ -330,7 +334,7 @@ class DockerSandboxRunner:
                 request_sha256=request.sha256,
                 exit_code=exit_code,
                 timed_out=timed_out,
-                memory_limit_exceeded=state["OOMKilled"],
+                memory_limit_exceeded=(memory_limit_exceeded or state["OOMKilled"]),
                 stdout_sha256=stdout_sha256,
                 stderr_sha256=stderr_sha256,
                 resources=resources,
