@@ -61,12 +61,13 @@ def _query(
 def _repository(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
-    (root / "README.md").write_text("alpha\nbeta alpha\n", encoding="utf-8")
+    # Exact bytes keep RepositorySnapshot identities and size assertions
+    # independent of host newline translation (notably CRLF on Windows).
+    (root / "README.md").write_bytes(b"alpha\nbeta alpha\n")
     src = root / "src"
     src.mkdir()
-    (src / "main.py").write_text(
-        "def main():\n    value = 'alpha'\n    return value\n",
-        encoding="utf-8",
+    (src / "main.py").write_bytes(
+        b"def main():\n    value = 'alpha'\n    return value\n"
     )
     store = FileContentStore(tmp_path / "store")
     stored = snapshot_directory(root, store)
