@@ -4,7 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONHASHSEED=0
 
-COPY src/plural_cognition/collective/docker_bootstrap.py /opt/plural-cognition/bootstrap.py
+COPY src/plural_cognition/collective/docker_bootstrap.py /opt/plural-cognition/bootstrap_core.py
+COPY src/plural_cognition/collective/docker_bootstrap_guard.py /opt/plural-cognition/bootstrap.py
 
 ENTRYPOINT []
 CMD []
