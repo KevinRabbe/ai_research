@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,9 +26,22 @@ def test_memory_events_parser_requires_nonnegative_oom_kill() -> None:
         guard._parse_memory_events("oom_kill 0\noom_kill 1\n")
 
 
-def test_guard_verifies_frozen_bootstrap_core_hash() -> None:
-    source = Path(guard.__file__).with_name("docker_bootstrap.py")
+def test_guard_verifies_frozen_bootstrap_core_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "bootstrap_core.py"
+    raw = (
+        b"def _run_candidate(*args, **kwargs):\n"
+        b"    return object()\n\n"
+        b"def run_bootstrap():\n"
+        b"    return {'status': 'candidate-result'}\n"
+    )
+    source.write_bytes(raw)
+    monkeypatch.setattr(guard, "CORE_BOOTSTRAP_SHA256", sha256(raw).hexdigest())
+
     module = guard._load_verified_core(source)
+
     assert callable(module.run_bootstrap)
     assert callable(module._run_candidate)
 
