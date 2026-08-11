@@ -228,9 +228,9 @@ def calibration_blueprints() -> tuple[CalibrationBlueprint, ...]:
             ),
             protected_cases=(
                 ("case-01-explicit", {"scale": 2, "value": 4}, {"value": 8}),
-                ("case-02-default", {"value": 9}, {"value": 9}),
+                ("case-02-default", {"request_id": "default", "value": 9}, {"value": 9}),
                 ("case-03-explicit-one", {"scale": 1, "value": 7}, {"value": 7}),
-                ("case-04-negative", {"value": -3}, {"value": -3}),
+                ("case-04-negative", {"request_id": "negative", "value": -3}, {"value": -3}),
             ),
             mutation_configuration={
                 "schema": "repository-surgery-api-contract-mutation-v1",
