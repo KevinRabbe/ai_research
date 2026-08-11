@@ -1,11 +1,14 @@
 """Final project-authored bootstrap-parent interference probe.
 
 The ordinary qualification matrix establishes containment and resource ceilings.
-This probe separately tests that a candidate process cannot signal-kill the trusted
-bootstrap parent inside the container PID namespace. The target-machine pass
-criterion is deliberately strict: the kernel must deny SIGKILL with EPERM. If the
-signal reaches the bootstrap, the normal runner fails closed and qualification is
-rejected for investigation rather than accepting an ambiguous result.
+This probe separately tests that a candidate process cannot terminate the trusted
+bootstrap parent inside the container PID namespace. The candidate deliberately
+attempts SIGKILL against its parent (which must be namespace PID 1). Qualification
+passes only if the trusted bootstrap survives long enough to return a normal,
+validated SandboxResult. Linux may report either EPERM or syscall success for the
+attempt; the security property is bootstrap survival, not a specific errno. If
+PID 1 actually terminates, the runner cannot produce the trusted result and the
+probe fails closed.
 """
 
 from __future__ import annotations
@@ -38,6 +41,9 @@ def _parent_interference_verifier(
     stderr: bytes,
     audit: dict[str, Any],
 ) -> dict[str, Any]:
+    # Reaching this verifier with a clean SandboxResult is itself host-observed
+    # evidence that trusted PID 1 survived: DockerSandboxRunner accepts a result
+    # only after the bootstrap returns its canonical, request-bound envelope.
     if result.exit_code != 0 or result.timed_out or result.memory_limit_exceeded or stderr:
         raise QualificationFailure(
             "bootstrap-parent interference probe did not complete cleanly"
@@ -49,20 +55,24 @@ def _parent_interference_verifier(
         )
     if payload.get("signal_number") != 9:
         raise QualificationFailure("bootstrap-parent probe did not attempt SIGKILL")
-    if payload.get("signal_errno") != errno.EPERM:
+    signal_errno = payload.get("signal_errno")
+    if signal_errno not in (0, errno.EPERM):
         raise QualificationFailure(
-            "candidate SIGKILL to bootstrap parent was not denied with EPERM"
+            "candidate SIGKILL to bootstrap parent produced unexpected errno"
         )
     return {
         "target_pid": 1,
         "signal_number": 9,
-        "signal_errno": errno.EPERM,
-        "kernel_denied_parent_sigkill": True,
+        "signal_errno": signal_errno,
+        "signal_syscall_returned_success": signal_errno == 0,
+        "kernel_reported_eperm": signal_errno == errno.EPERM,
+        "trusted_bootstrap_result_returned": True,
+        "bootstrap_survived_parent_sigkill_attempt": True,
     }
 
 
 def parent_interference_probe_definition() -> QualificationProbeDefinition:
-    """Return the final strict bootstrap-parent SIGKILL denial probe."""
+    """Return the final bootstrap-parent SIGKILL survival probe."""
 
     return QualificationProbeDefinition(
         name="bootstrap-parent-interference",
