@@ -238,14 +238,20 @@ def verify_create_audit(
     tmpfs_value = (
         tmpfs.get(configuration.workspace_target, "") if type(tmpfs) is dict else ""
     )
-    checks["bounded_workspace_tmpfs"] = all(
-        token in tmpfs_value
-        for token in (
-            "noexec",
-            "nosuid",
-            f"size={limits.writable_bytes}",
-        )
-    )
+    tmpfs_options = {
+        option.strip() for option in tmpfs_value.split(",") if option.strip()
+    }
+    checks["bounded_workspace_tmpfs"] = {
+        "noexec",
+        "nosuid",
+        f"size={limits.writable_bytes}",
+    }.issubset(tmpfs_options)
+    checks["workspace_tmpfs_writable"] = "rw" in tmpfs_options and "ro" not in tmpfs_options
+    checks["workspace_tmpfs_mode"] = "mode=0700" in tmpfs_options
+    checks["workspace_tmpfs_owner"] = {
+        f"uid={configuration.candidate_uid}",
+        f"gid={configuration.candidate_gid}",
+    }.issubset(tmpfs_options)
 
     failed = sorted(name for name, passed in checks.items() if not passed)
     if failed:
