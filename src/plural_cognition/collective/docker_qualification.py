@@ -46,11 +46,13 @@ def _qualification_source_sha256() -> str:
     payload = {
         name: _sha256_file(root / name)
         for name in (
+            "docker_candidate.py",
             "docker_engine_fingerprint.py",
             "docker_qualification.py",
             "docker_qualification_exec.py",
             "docker_qualification_model.py",
             "docker_qualification_probes.py",
+            "docker_runner.py",
         )
     }
     return sha256(canonical_json_bytes(payload)).hexdigest()
