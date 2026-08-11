@@ -61,7 +61,7 @@ def _bundle(tmp_path: Path):
     store = FileContentStore(tmp_path / "store")
     repository_root = tmp_path / "repository-source"
     repository_root.mkdir()
-    (repository_root / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (repository_root / "module.py").write_bytes(b"VALUE = 1\n")
     repository = snapshot_directory(repository_root, store)
     submission_sha = store.put_bytes(b'{"submission":"visible"}')
     patch_sha = store.put_bytes(
@@ -92,9 +92,15 @@ def _bundle(tmp_path: Path):
     return store, configuration, spec, request, bundle
 
 
-def test_docker_configuration_requires_digest_pinned_image() -> None:
-    with pytest.raises(ValueError, match="pinned"):
+def test_docker_configuration_requires_immutable_image_reference() -> None:
+    with pytest.raises(ValueError, match="immutable"):
         DockerRunnerConfiguration(image_reference="python:3.11")
+
+
+def test_docker_configuration_accepts_local_immutable_image_id() -> None:
+    configuration = DockerRunnerConfiguration(image_reference=f"sha256:{IMAGE}")
+    assert configuration.environment_image_sha256 == IMAGE
+    assert configuration.image_reference == f"sha256:{IMAGE}"
 
 
 def test_docker_input_bundle_contains_only_candidate_execution_material(
@@ -102,7 +108,7 @@ def test_docker_input_bundle_contains_only_candidate_execution_material(
 ) -> None:
     _, _, _, request, bundle = _bundle(tmp_path)
     assert bundle.root.is_absolute()
-    assert (bundle.root / "repository" / "module.py").read_text() == "VALUE = 1\n"
+    assert (bundle.root / "repository" / "module.py").read_bytes() == b"VALUE = 1\n"
     assert (bundle.root / "candidate.patch").read_bytes()
     assert (bundle.root / "runtime-input.bin").read_bytes() == b'{"x":1}\n'
     manifest = (bundle.root / "bundle-manifest.json").read_text(encoding="ascii")
@@ -160,6 +166,20 @@ def test_docker_command_plan_is_fail_closed_and_resource_bounded(
     assert configuration.image_reference in argv
     assert plan.start_argv == ("docker", "start", "--attach", "pc-rs-001")
     assert plan.remove_argv == ("docker", "rm", "--force", "pc-rs-001")
+
+
+def test_docker_command_plan_accepts_local_image_id(tmp_path: Path) -> None:
+    _, _, _, _, bundle = _bundle(tmp_path)
+    configuration = DockerRunnerConfiguration(image_reference=f"sha256:{IMAGE}")
+    spec = _spec(configuration)
+    plan = build_docker_command_plan(
+        spec=spec,
+        configuration=configuration,
+        input_bundle_directory=bundle.root,
+        container_name="pc-local-image",
+    )
+    assert f"sha256:{IMAGE}" in plan.create_argv
+    assert plan.create_argv[plan.create_argv.index("--pull") + 1] == "never"
 
 
 def test_docker_plan_rejects_spec_bound_to_different_configuration(
