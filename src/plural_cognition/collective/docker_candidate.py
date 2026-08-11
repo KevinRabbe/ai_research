@@ -59,15 +59,34 @@ def _absolute_container_path(value: str, field: str) -> None:
 
 
 def _pinned_image_digest(image_reference: str) -> str:
+    """Return the digest from an immutable Docker image reference.
+
+    Qualification may bind either a registry repository digest
+    (``name@sha256:<digest>``) or a local immutable image ID
+    (``sha256:<digest>``). Mutable tags are rejected.
+    """
+
     _nonempty(image_reference, "image_reference")
-    marker = "@sha256:"
-    if marker not in image_reference:
-        raise ValueError("image_reference must be pinned by @sha256:<digest>")
-    name, digest = image_reference.rsplit(marker, 1)
-    if not name or marker in name:
-        raise ValueError("image_reference must contain exactly one digest pin")
-    validate_sha256(digest)
-    return digest
+    local_marker = "sha256:"
+    repository_marker = "@sha256:"
+
+    if image_reference.startswith(local_marker):
+        digest = image_reference[len(local_marker) :]
+        if repository_marker in digest or ":" in digest or "@" in digest:
+            raise ValueError("local image_reference must contain exactly one sha256 digest")
+        validate_sha256(digest)
+        return digest
+
+    if repository_marker in image_reference:
+        name, digest = image_reference.rsplit(repository_marker, 1)
+        if not name or repository_marker in name or image_reference.count(repository_marker) != 1:
+            raise ValueError("image_reference must contain exactly one digest pin")
+        validate_sha256(digest)
+        return digest
+
+    raise ValueError(
+        "image_reference must be immutable: sha256:<digest> or name@sha256:<digest>"
+    )
 
 
 def _cpu_quota_text(cpu_time_ms: int, wall_time_ms: int) -> str:
