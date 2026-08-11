@@ -16,6 +16,7 @@ from typing import Sequence
 from .content_store import FileContentStore, validate_sha256
 from .docker_bootstrap_guard import CORE_BOOTSTRAP_SHA256
 from .docker_candidate import DockerRunnerConfiguration
+from .docker_engine_fingerprint import qualification_engine_sha256
 from .docker_identity import probe_docker_qualification_identity
 from .docker_local_image import probe_local_qualification_image
 from .docker_qualification_exec import execute_probe
@@ -45,6 +46,7 @@ def _qualification_source_sha256() -> str:
     payload = {
         name: _sha256_file(root / name)
         for name in (
+            "docker_engine_fingerprint.py",
             "docker_qualification.py",
             "docker_qualification_exec.py",
             "docker_qualification_model.py",
@@ -58,7 +60,7 @@ def run_docker_qualification(
     *,
     image_reference: str,
     software_revision: str,
-    expected_engine_sha256: str,
+    expected_engine_qualification_sha256: str,
     output: Path,
     evidence_root: Path,
     dockerfile: Path,
@@ -70,7 +72,7 @@ def run_docker_qualification(
     """Run the frozen Repository Surgery v0 qualification matrix."""
 
     validate_git_revision(software_revision)
-    validate_sha256(expected_engine_sha256)
+    validate_sha256(expected_engine_qualification_sha256)
     if not image_reference.startswith("sha256:"):
         raise ValueError(
             "qualification image must be an immutable local sha256 reference"
@@ -93,10 +95,11 @@ def run_docker_qualification(
         docker_executable=docker_executable,
     )
     engine = base_identity.engine
-    if engine.sha256 != expected_engine_sha256:
+    live_engine_qualification_sha256 = qualification_engine_sha256(engine)
+    if live_engine_qualification_sha256 != expected_engine_qualification_sha256:
         raise QualificationFailure(
-            "Docker Engine fingerprint changed; rerun the non-starting identity "
-            "freeze before qualification"
+            "Docker Engine qualification fingerprint changed; rerun the "
+            "non-starting identity/fingerprint freeze before qualification"
         )
 
     local_image = probe_local_qualification_image(
@@ -150,7 +153,8 @@ def run_docker_qualification(
 
     report = DockerQualificationReport(
         software_revision=software_revision,
-        engine_sha256=engine.sha256,
+        engine_observation_sha256=engine.sha256,
+        engine_qualification_sha256=live_engine_qualification_sha256,
         image_identity_sha256=local_image.sha256,
         immutable_image=local_image.immutable_reference,
         runner_configuration_sha256=configuration.sha256,
@@ -175,7 +179,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--image", required=True)
     parser.add_argument("--software-revision", required=True)
-    parser.add_argument("--expected-engine-sha256", required=True)
+    parser.add_argument("--expected-engine-qualification-sha256", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--evidence-root", required=True, type=Path)
     parser.add_argument(
@@ -206,7 +210,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = run_docker_qualification(
         image_reference=args.image,
         software_revision=args.software_revision,
-        expected_engine_sha256=args.expected_engine_sha256,
+        expected_engine_qualification_sha256=(
+            args.expected_engine_qualification_sha256
+        ),
         output=args.output,
         evidence_root=args.evidence_root,
         dockerfile=args.dockerfile,
@@ -217,7 +223,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(f"status={report.status}")
     print(f"report_sha256={report.sha256}")
-    print(f"engine_sha256={report.engine_sha256}")
+    print(f"engine_observation_sha256={report.engine_observation_sha256}")
+    print(f"engine_qualification_sha256={report.engine_qualification_sha256}")
     print(f"image_identity_sha256={report.image_identity_sha256}")
     print(f"immutable_image={report.immutable_image}")
     for probe in report.probes:
