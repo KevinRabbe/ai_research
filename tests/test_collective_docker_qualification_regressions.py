@@ -2,11 +2,31 @@ from __future__ import annotations
 
 import pytest
 
+from plural_cognition.collective.artifacts import ResourceUsage
+from plural_cognition.collective.docker_qualification_model import QualificationFailure
+from plural_cognition.collective.docker_qualification_parent_probe import (
+    _PARENT_INTERFERENCE_SCRIPT,
+    _parent_interference_verifier,
+    parent_interference_probe_definition,
+)
 from plural_cognition.collective.docker_qualification_probes import _ISOLATION_SCRIPT
 from plural_cognition.collective.docker_runner import (
     DockerRunnerError,
     _normalize_candidate_exit_code,
 )
+from plural_cognition.collective.sandbox import SandboxResult
+
+
+def _clean_result() -> SandboxResult:
+    return SandboxResult(
+        request_sha256="a" * 64,
+        exit_code=0,
+        timed_out=False,
+        memory_limit_exceeded=False,
+        stdout_sha256="b" * 64,
+        stderr_sha256="c" * 64,
+        resources=ResourceUsage(),
+    )
 
 
 def test_output_overflow_normalizes_signal_exit_to_abnormal_result() -> None:
@@ -57,3 +77,29 @@ def test_isolation_probe_checks_root_material_access_not_path_existence() -> Non
     assert 'Path("/root/.docker/config.json").exists()' not in _ISOLATION_SCRIPT
     assert 'Path("/root/.gitconfig").exists()' not in _ISOLATION_SCRIPT
     assert 'Path("/root/.ssh").exists()' not in _ISOLATION_SCRIPT
+
+
+def test_parent_interference_probe_targets_bootstrap_parent_with_sigkill() -> None:
+    definition = parent_interference_probe_definition()
+    assert definition.name == "bootstrap-parent-interference"
+    assert "target_pid=os.getppid()" in _PARENT_INTERFERENCE_SCRIPT
+    assert "signal_number=9" in _PARENT_INTERFERENCE_SCRIPT
+    assert "os.kill(target_pid,signal_number)" in _PARENT_INTERFERENCE_SCRIPT
+
+
+def test_parent_interference_probe_accepts_only_pid1_sigkill_eperm() -> None:
+    evidence = _parent_interference_verifier(
+        _clean_result(),
+        b'{"signal_errno":1,"signal_number":9,"target_pid":1}\n',
+        b"",
+        {},
+    )
+    assert evidence["kernel_denied_parent_sigkill"] is True
+
+    with pytest.raises(QualificationFailure, match="not denied with EPERM"):
+        _parent_interference_verifier(
+            _clean_result(),
+            b'{"signal_errno":0,"signal_number":9,"target_pid":1}\n',
+            b"",
+            {},
+        )
