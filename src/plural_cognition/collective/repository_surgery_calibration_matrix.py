@@ -277,7 +277,7 @@ def calibration_blueprints() -> tuple[CalibrationBlueprint, ...]:
             generation_seed=6,
             clean_files=(("app.py", error_clean),),
             buggy_files=(("app.py", error_buggy),),
-            gold_patch=b'''--- a/app.py\n+++ b/app.py\n@@ -3,2 +3,4 @@\n \n def divide(value: int, divisor: int) -> int:\n+    if divisor == 0:\n+        raise ValueError("divisor must not be zero")\n     return value // divisor\n''',
+            gold_patch=b'''--- a/app.py\n+++ b/app.py\n@@ -3,3 +3,5 @@\n \n def divide(value: int, divisor: int) -> int:\n+    if divisor == 0:\n+        raise ValueError("divisor must not be zero")\n     return value // divisor\n''',
             issue_prompt=(
                 "Fix invalid-input handling. A zero divisor must produce the same structured "
                 "invalid-input JSON response as other rejected inputs instead of crashing. Preserve "
