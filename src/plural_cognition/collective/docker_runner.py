@@ -166,6 +166,25 @@ def _optional_exit_code(payload: dict[str, Any]) -> int | None:
     return value
 
 
+def _normalize_candidate_exit_code(
+    *,
+    exit_code: int | None,
+    timed_out: bool,
+    stdout_limit_exceeded: bool,
+    stderr_limit_exceeded: bool,
+) -> int | None:
+    output_limit_exceeded = stdout_limit_exceeded or stderr_limit_exceeded
+    if timed_out:
+        if exit_code is not None:
+            raise DockerRunnerError("timed-out candidate reported an exit code")
+        return None
+    if exit_code is None and not output_limit_exceeded:
+        raise DockerRunnerError("non-timeout candidate omitted exit code")
+    if output_limit_exceeded:
+        return None
+    return exit_code
+
+
 def _bounded_base64(payload: dict[str, Any], name: str, limit: int) -> bytes:
     value = payload.get(name)
     if type(value) is not str:
@@ -298,11 +317,12 @@ class DockerSandboxRunner:
             oom_kill_events = _nonnegative_int(envelope, "oom_kill_events")
             if memory_limit_exceeded != (oom_kill_events > 0):
                 raise DockerRunnerError("bootstrap OOM fields are inconsistent")
-            exit_code = _optional_exit_code(envelope)
-            if timed_out and exit_code is not None:
-                raise DockerRunnerError("timed-out candidate reported an exit code")
-            if not timed_out and exit_code is None:
-                raise DockerRunnerError("non-timeout candidate omitted exit code")
+            exit_code = _normalize_candidate_exit_code(
+                exit_code=_optional_exit_code(envelope),
+                timed_out=timed_out,
+                stdout_limit_exceeded=stdout_limit_exceeded,
+                stderr_limit_exceeded=stderr_limit_exceeded,
+            )
 
             stdout = _bounded_base64(
                 envelope,
@@ -317,11 +337,6 @@ class DockerSandboxRunner:
             wall_time_ms = _nonnegative_int(envelope, "wall_time_ms")
             cpu_time_ms = _nonnegative_int(envelope, "cpu_time_ms")
             peak_memory_bytes = _nonnegative_int(envelope, "peak_memory_bytes")
-
-            # Output overflow is a candidate execution failure. Preserve the bounded
-            # bytes while ensuring it cannot be mistaken for a successful exit.
-            if (stdout_limit_exceeded or stderr_limit_exceeded) and exit_code == 0:
-                exit_code = None
 
             stdout_sha256 = self.store.put_bytes(stdout)
             stderr_sha256 = self.store.put_bytes(stderr)
