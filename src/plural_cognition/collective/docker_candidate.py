@@ -350,7 +350,7 @@ def build_docker_command_plan(
         "--mount",
         (
             f"type=bind,src={source},dst={configuration.input_mount_target},"
-            "readonly,bind-recursive=readonly"
+            "readonly,bind-propagation=rprivate,bind-recursive=readonly"
         ),
         "--tmpfs",
         (
