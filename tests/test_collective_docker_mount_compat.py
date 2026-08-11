@@ -17,7 +17,7 @@ from plural_cognition.collective.sandbox import (
 IMAGE = "a" * 64
 
 
-def test_recursive_readonly_bind_declares_rprivate_propagation(tmp_path: Path) -> None:
+def _plan(tmp_path: Path):
     bundle = tmp_path / "bundle"
     bundle.mkdir()
     for name in (
@@ -50,15 +50,33 @@ def test_recursive_readonly_bind_declares_rprivate_propagation(tmp_path: Path) -
         environment=(),
         limits=limits,
     )
-
     plan = build_docker_command_plan(
         spec=spec,
         configuration=configuration,
         input_bundle_directory=bundle,
         container_name="pc-mount-compat",
     )
+    return configuration, limits, plan
+
+
+def test_recursive_readonly_bind_declares_rprivate_propagation(tmp_path: Path) -> None:
+    _, _, plan = _plan(tmp_path)
     mount = plan.create_argv[plan.create_argv.index("--mount") + 1]
 
     assert "readonly" in mount
     assert "bind-propagation=rprivate" in mount
     assert "bind-recursive=readonly" in mount
+
+
+def test_workspace_tmpfs_is_owned_by_candidate_and_private(tmp_path: Path) -> None:
+    configuration, limits, plan = _plan(tmp_path)
+    tmpfs = plan.create_argv[plan.create_argv.index("--tmpfs") + 1]
+
+    assert tmpfs.startswith(f"{configuration.workspace_target}:")
+    assert "rw" in tmpfs
+    assert "noexec" in tmpfs
+    assert "nosuid" in tmpfs
+    assert f"size={limits.writable_bytes}" in tmpfs
+    assert "mode=0700" in tmpfs
+    assert f"uid={configuration.candidate_uid}" in tmpfs
+    assert f"gid={configuration.candidate_gid}" in tmpfs
