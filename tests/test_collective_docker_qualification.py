@@ -81,6 +81,42 @@ def _engine(*, ncpu: int = 24, memory_bytes: int = 16_634_265_600) -> DockerEngi
     )
 
 
+def _frozen_audit(
+    configuration: DockerRunnerConfiguration,
+    case_limits,
+) -> dict[str, object]:
+    return {
+        "user": f"{configuration.candidate_uid}:{configuration.candidate_gid}",
+        "network_mode": "none",
+        "ipc_mode": "none",
+        "pid_mode": "",
+        "cgroupns_mode": "private",
+        "privileged": False,
+        "readonly_rootfs": True,
+        "pids_limit": case_limits.process_count,
+        "memory": case_limits.memory_bytes,
+        "memory_swap": case_limits.memory_bytes,
+        "nano_cpus": expected_nano_cpus(case_limits),
+        "restart_policy": "no",
+        "cap_drop": ["ALL"],
+        "security_opt": ["no-new-privileges:true"],
+        "devices": [],
+        "device_requests": [],
+        "port_bindings": {},
+        "mounts": [
+            {"type": "bind", "destination": "/pc-input", "rw": False},
+            {"type": "tmpfs", "destination": "/pc-work", "rw": True},
+        ],
+        "tmpfs": {
+            "/pc-work": (
+                f"rw,noexec,nosuid,size={case_limits.writable_bytes},"
+                f"mode=0700,uid={configuration.candidate_uid},"
+                f"gid={configuration.candidate_gid}"
+            )
+        },
+    }
+
+
 def test_qualification_report_is_qualified_only_when_every_probe_passes() -> None:
     assert _report(_record("a", True), _record("b", True)).status == QUALIFIED
     assert _report(_record("a", True), _record("b", False)).status == REJECTED
@@ -126,34 +162,7 @@ def test_engine_qualification_fingerprint_changes_on_security_surface() -> None:
 def test_applied_docker_policy_audit_accepts_frozen_controls() -> None:
     configuration = DockerRunnerConfiguration(image_reference=f"sha256:{IMAGE}")
     case_limits = limits()
-    audit = {
-        "user": "65534:65534",
-        "network_mode": "none",
-        "ipc_mode": "none",
-        "pid_mode": "",
-        "cgroupns_mode": "private",
-        "privileged": False,
-        "readonly_rootfs": True,
-        "pids_limit": case_limits.process_count,
-        "memory": case_limits.memory_bytes,
-        "memory_swap": case_limits.memory_bytes,
-        "nano_cpus": expected_nano_cpus(case_limits),
-        "restart_policy": "no",
-        "cap_drop": ["ALL"],
-        "security_opt": ["no-new-privileges:true"],
-        "devices": [],
-        "device_requests": [],
-        "port_bindings": {},
-        "mounts": [
-            {"type": "bind", "destination": "/pc-input", "rw": False},
-            {"type": "tmpfs", "destination": "/pc-work", "rw": True},
-        ],
-        "tmpfs": {
-            "/pc-work": (
-                f"rw,noexec,nosuid,size={case_limits.writable_bytes}"
-            )
-        },
-    }
+    audit = _frozen_audit(configuration, case_limits)
 
     checks = verify_create_audit(
         audit,
@@ -163,39 +172,60 @@ def test_applied_docker_policy_audit_accepts_frozen_controls() -> None:
 
     assert checks
     assert all(checks.values())
+    assert checks["workspace_tmpfs_writable"] is True
+    assert checks["workspace_tmpfs_mode"] is True
+    assert checks["workspace_tmpfs_owner"] is True
 
 
 def test_applied_docker_policy_audit_rejects_network_or_extra_bind() -> None:
     configuration = DockerRunnerConfiguration(image_reference=f"sha256:{IMAGE}")
     case_limits = limits()
-    audit = {
-        "user": "65534:65534",
-        "network_mode": "bridge",
-        "ipc_mode": "none",
-        "pid_mode": "",
-        "cgroupns_mode": "private",
-        "privileged": False,
-        "readonly_rootfs": True,
-        "pids_limit": case_limits.process_count,
-        "memory": case_limits.memory_bytes,
-        "memory_swap": case_limits.memory_bytes,
-        "nano_cpus": expected_nano_cpus(case_limits),
-        "restart_policy": "no",
-        "cap_drop": ["ALL"],
-        "security_opt": ["no-new-privileges=true"],
-        "devices": [],
-        "device_requests": [],
-        "port_bindings": {},
-        "mounts": [
-            {"type": "bind", "destination": "/pc-input", "rw": False},
-            {"type": "bind", "destination": "/host", "rw": False},
-        ],
-        "tmpfs": {
-            "/pc-work": f"noexec,nosuid,size={case_limits.writable_bytes}"
-        },
-    }
+    audit = _frozen_audit(configuration, case_limits)
+    audit["network_mode"] = "bridge"
+    audit["mounts"] = [
+        {"type": "bind", "destination": "/pc-input", "rw": False},
+        {"type": "bind", "destination": "/host", "rw": False},
+    ]
 
     with pytest.raises(QualificationFailure, match="network_none"):
+        verify_create_audit(
+            audit,
+            configuration=configuration,
+            limits=case_limits,
+        )
+
+
+@pytest.mark.parametrize(
+    ("tmpfs_value", "expected_check"),
+    (
+        (
+            "rw,noexec,nosuid,size=8388608,uid=65534,gid=65534",
+            "workspace_tmpfs_mode",
+        ),
+        (
+            "rw,noexec,nosuid,size=8388608,mode=0700,gid=65534",
+            "workspace_tmpfs_owner",
+        ),
+        (
+            "rw,noexec,nosuid,size=8388608,mode=0700,uid=65534",
+            "workspace_tmpfs_owner",
+        ),
+        (
+            "ro,noexec,nosuid,size=8388608,mode=0700,uid=65534,gid=65534",
+            "workspace_tmpfs_writable",
+        ),
+    ),
+)
+def test_applied_docker_policy_audit_rejects_workspace_identity_or_mode_drift(
+    tmpfs_value: str,
+    expected_check: str,
+) -> None:
+    configuration = DockerRunnerConfiguration(image_reference=f"sha256:{IMAGE}")
+    case_limits = limits()
+    audit = _frozen_audit(configuration, case_limits)
+    audit["tmpfs"] = {"/pc-work": tmpfs_value}
+
+    with pytest.raises(QualificationFailure, match=expected_check):
         verify_create_audit(
             audit,
             configuration=configuration,
