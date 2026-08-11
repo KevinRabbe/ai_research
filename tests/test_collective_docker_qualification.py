@@ -3,6 +3,10 @@ from __future__ import annotations
 import pytest
 
 from plural_cognition.collective.docker_candidate import DockerRunnerConfiguration
+from plural_cognition.collective.docker_engine_fingerprint import (
+    qualification_engine_sha256,
+)
+from plural_cognition.collective.docker_identity import DockerEngineIdentity
 from plural_cognition.collective.docker_qualification import _qualification_source_sha256
 from plural_cognition.collective.docker_qualification_exec import (
     canonical_probe_json,
@@ -41,7 +45,8 @@ def _record(name: str, passed: bool) -> QualificationProbeRecord:
 def _report(*records: QualificationProbeRecord) -> DockerQualificationReport:
     return DockerQualificationReport(
         software_revision=REVISION,
-        engine_sha256=DIGEST,
+        engine_observation_sha256=DIGEST,
+        engine_qualification_sha256=DIGEST,
         image_identity_sha256=DIGEST,
         immutable_image=f"sha256:{IMAGE}",
         runner_configuration_sha256=DIGEST,
@@ -54,9 +59,68 @@ def _report(*records: QualificationProbeRecord) -> DockerQualificationReport:
     )
 
 
+def _engine(*, ncpu: int = 24, memory_bytes: int = 16_634_265_600) -> DockerEngineIdentity:
+    return DockerEngineIdentity(
+        client_version="29.7.2",
+        client_api_version="1.55",
+        client_git_commit="a7dcaa6",
+        server_version="29.7.2",
+        server_api_version="1.55",
+        server_git_commit="6a43e3d",
+        platform_name="Docker Desktop 4.86.0 (236216)",
+        os_type="linux",
+        architecture="x86_64",
+        kernel_version="6.18.33.2-microsoft-standard-WSL2",
+        operating_system="Docker Desktop",
+        cgroup_version="2",
+        cgroup_driver="cgroupfs",
+        docker_root_dir="/var/lib/docker",
+        security_options=("name=cgroupns", "name=seccomp,profile=builtin"),
+        ncpu=ncpu,
+        memory_bytes=memory_bytes,
+    )
+
+
 def test_qualification_report_is_qualified_only_when_every_probe_passes() -> None:
     assert _report(_record("a", True), _record("b", True)).status == QUALIFIED
     assert _report(_record("a", True), _record("b", False)).status == REJECTED
+
+
+def test_engine_qualification_fingerprint_excludes_capacity_observation() -> None:
+    baseline = _engine()
+    capacity_drift = _engine(ncpu=20, memory_bytes=16_634_277_888)
+
+    assert baseline.sha256 != capacity_drift.sha256
+    assert qualification_engine_sha256(baseline) == qualification_engine_sha256(
+        capacity_drift
+    )
+
+
+def test_engine_qualification_fingerprint_changes_on_security_surface() -> None:
+    baseline = _engine()
+    changed = DockerEngineIdentity(
+        client_version=baseline.client_version,
+        client_api_version=baseline.client_api_version,
+        client_git_commit=baseline.client_git_commit,
+        server_version=baseline.server_version,
+        server_api_version=baseline.server_api_version,
+        server_git_commit=baseline.server_git_commit,
+        platform_name=baseline.platform_name,
+        os_type=baseline.os_type,
+        architecture=baseline.architecture,
+        kernel_version=baseline.kernel_version,
+        operating_system=baseline.operating_system,
+        cgroup_version=baseline.cgroup_version,
+        cgroup_driver=baseline.cgroup_driver,
+        docker_root_dir=baseline.docker_root_dir,
+        security_options=("name=cgroupns",),
+        ncpu=baseline.ncpu,
+        memory_bytes=baseline.memory_bytes,
+    )
+
+    assert qualification_engine_sha256(baseline) != qualification_engine_sha256(
+        changed
+    )
 
 
 def test_applied_docker_policy_audit_accepts_frozen_controls() -> None:
