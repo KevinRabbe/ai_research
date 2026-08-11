@@ -9,7 +9,7 @@ from typing import Any
 
 from .content_store import validate_sha256
 
-DOCKER_QUALIFICATION_REPORT_SCHEMA = "plural-cognition-docker-runner-qualification-v1"
+DOCKER_QUALIFICATION_REPORT_SCHEMA = "plural-cognition-docker-runner-qualification-v2"
 DOCKER_QUALIFICATION_PROBE_SCHEMA = "plural-cognition-docker-runner-probe-v1"
 QUALIFICATION_SCOPE = "repository-surgery-v0"
 QUALIFIED = "QUALIFIED"
@@ -81,7 +81,8 @@ class QualificationProbeRecord:
 @dataclass(frozen=True, slots=True)
 class DockerQualificationReport:
     software_revision: str
-    engine_sha256: str
+    engine_observation_sha256: str
+    engine_qualification_sha256: str
     image_identity_sha256: str
     immutable_image: str
     runner_configuration_sha256: str
@@ -95,7 +96,8 @@ class DockerQualificationReport:
     def __post_init__(self) -> None:
         validate_git_revision(self.software_revision)
         for digest in (
-            self.engine_sha256,
+            self.engine_observation_sha256,
+            self.engine_qualification_sha256,
             self.image_identity_sha256,
             self.runner_configuration_sha256,
             self.sandbox_contract_sha256,
@@ -123,7 +125,8 @@ class DockerQualificationReport:
             "scope": QUALIFICATION_SCOPE,
             "status": self.status,
             "software_revision": self.software_revision,
-            "engine_sha256": self.engine_sha256,
+            "engine_observation_sha256": self.engine_observation_sha256,
+            "engine_qualification_sha256": self.engine_qualification_sha256,
             "image_identity_sha256": self.image_identity_sha256,
             "immutable_image": self.immutable_image,
             "runner_configuration_sha256": self.runner_configuration_sha256,
