@@ -6,3 +6,4 @@
 !src/plural_cognition/
 !src/plural_cognition/collective/
 !src/plural_cognition/collective/docker_bootstrap.py
+!src/plural_cognition/collective/docker_bootstrap_guard.py
