@@ -160,9 +160,20 @@ def test_docker_command_plan_is_fail_closed_and_resource_bounded(
     )
     mount = argv[argv.index("--mount") + 1]
     assert "readonly" in mount
+    assert "bind-propagation=rprivate" in mount
     assert "bind-recursive=readonly" in mount
     tmpfs = argv[argv.index("--tmpfs") + 1]
-    assert tmpfs.endswith("rw,noexec,nosuid,size=64000000")
+    assert tmpfs.startswith(configuration.workspace_target + ":")
+    for token in (
+        "rw",
+        "noexec",
+        "nosuid",
+        "size=64000000",
+        "mode=0700",
+        f"uid={configuration.candidate_uid}",
+        f"gid={configuration.candidate_gid}",
+    ):
+        assert token in tmpfs
     assert configuration.image_reference in argv
     assert plan.start_argv == ("docker", "start", "--attach", "pc-rs-001")
     assert plan.remove_argv == ("docker", "rm", "--force", "pc-rs-001")
