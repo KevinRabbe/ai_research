@@ -8,7 +8,7 @@ import pytest
 
 from plural_cognition.collective.artifacts import TaskIdentity
 from plural_cognition.collective.content_store import FileContentStore
-from plural_cognition.collective.docker_bootstrap import BOOTSTRAP_RESULT_SCHEMA
+from plural_cognition.collective.docker_bootstrap_guard import BOOTSTRAP_RESULT_SCHEMA
 from plural_cognition.collective.docker_candidate import (
     DOCKER_RUNNER_ID,
     DockerRunnerConfiguration,
@@ -101,6 +101,9 @@ class _SuccessfulExecutor:
         self.request_sha256: str | None = None
         self.noncanonical = False
         self.remove_failure = False
+        self.memory_limit_exceeded = False
+        self.oom_kill_events = 0
+        self.container_oom_killed = False
 
     def __call__(self, argv: tuple[str, ...], timeout_seconds: float) -> DockerCommandResult:
         self.calls.append((argv, timeout_seconds))
@@ -118,6 +121,8 @@ class _SuccessfulExecutor:
                 "timed_out": False,
                 "stdout_limit_exceeded": False,
                 "stderr_limit_exceeded": False,
+                "memory_limit_exceeded": self.memory_limit_exceeded,
+                "oom_kill_events": self.oom_kill_events,
                 "stdout_base64": base64.b64encode(b"candidate-out\n").decode("ascii"),
                 "stderr_base64": base64.b64encode(b"").decode("ascii"),
                 "wall_time_ms": 23,
@@ -130,7 +135,11 @@ class _SuccessfulExecutor:
                 stdout = _canonical_line(envelope)
             return DockerCommandResult(argv, 0, stdout, b"")
         if operation == "inspect":
-            state = {"Running": False, "OOMKilled": False, "ExitCode": 0}
+            state = {
+                "Running": False,
+                "OOMKilled": self.container_oom_killed,
+                "ExitCode": 0,
+            }
             return DockerCommandResult(argv, 0, json.dumps(state).encode("ascii"), b"")
         if operation == "rm":
             if self.remove_failure:
@@ -159,6 +168,32 @@ def test_concrete_runner_parses_canonical_bootstrap_result_and_cleans_up(tmp_pat
     start_timeout = next(timeout for argv, timeout in executor.calls if argv[1] == "start")
     assert start_timeout == 6.0
     assert list((tmp_path / "staging").iterdir()) == []
+
+
+def test_concrete_runner_uses_bootstrap_child_oom_evidence(tmp_path: Path) -> None:
+    executor = _SuccessfulExecutor()
+    _, request, runner = _case(tmp_path, executor)
+    executor.request_sha256 = request.sha256
+    executor.memory_limit_exceeded = True
+    executor.oom_kill_events = 1
+
+    result = runner.run(request)
+
+    assert result.memory_limit_exceeded is True
+    assert executor.container_oom_killed is False
+
+
+def test_concrete_runner_rejects_inconsistent_oom_evidence(tmp_path: Path) -> None:
+    executor = _SuccessfulExecutor()
+    _, request, runner = _case(tmp_path, executor)
+    executor.request_sha256 = request.sha256
+    executor.memory_limit_exceeded = False
+    executor.oom_kill_events = 1
+
+    with pytest.raises(DockerRunnerError, match="OOM fields are inconsistent"):
+        runner.run(request)
+
+    assert executor.calls[-1][0][1] == "rm"
 
 
 def test_concrete_runner_outer_timeout_forces_container_removal(tmp_path: Path) -> None:
