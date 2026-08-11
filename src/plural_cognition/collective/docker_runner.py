@@ -17,7 +17,6 @@ import json
 import shutil
 import subprocess
 import tempfile
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -219,14 +218,11 @@ class DockerSandboxRunner:
         if request.sandbox_spec_sha256 != self.spec.sha256:
             raise ValueError("request does not bind this runner sandbox specification")
 
-        staging = Path(
-            tempfile.mkdtemp(prefix="pc-docker-", dir=self.staging_root)
-        ).resolve()
+        staging = Path(tempfile.mkdtemp(prefix="pc-docker-", dir=self.staging_root)).resolve()
         bundle_root = staging / "bundle"
         container_name = f"pc-{request.sha256[:20]}-{uuid4().hex[:12]}"
         plan = None
         created = False
-        started_ns = time.monotonic_ns()
 
         try:
             prepare_docker_input_bundle(
@@ -327,13 +323,16 @@ class DockerSandboxRunner:
                 resources=resources,
             )
         finally:
+            cleanup_failures: list[str] = []
             if created and plan is not None:
                 try:
-                    self._exec(plan.remove_argv, 15.0)
-                except BaseException:
-                    # Cleanup failure must not overwrite a primary exception, but a
-                    # stale container remains a qualification failure detectable by
-                    # the adversarial harness. The runner never continues executing it.
-                    pass
-            shutil.rmtree(staging, ignore_errors=True)
-            _ = started_ns
+                    remove = self._exec(plan.remove_argv, 15.0)
+                    _require_success(remove, "rm --force")
+                except BaseException as exc:
+                    cleanup_failures.append(f"container cleanup failed: {type(exc).__name__}: {exc}")
+            try:
+                shutil.rmtree(staging)
+            except BaseException as exc:
+                cleanup_failures.append(f"staging cleanup failed: {type(exc).__name__}: {exc}")
+            if cleanup_failures:
+                raise DockerRunnerError("; ".join(cleanup_failures))
