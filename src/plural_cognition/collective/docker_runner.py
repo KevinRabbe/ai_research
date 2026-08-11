@@ -23,7 +23,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from .artifacts import ResourceUsage
-from .content_store import ContentStore
+from .content_store import ContentStore, validate_sha256
 from .docker_bootstrap import BOOTSTRAP_RESULT_SCHEMA
 from .docker_candidate import (
     DockerRunnerConfiguration,
@@ -116,6 +116,15 @@ def _parse_state(result: DockerCommandResult) -> dict[str, Any]:
         raise DockerRunnerError("docker inspect returned invalid JSON") from exc
     if type(payload) is not dict:
         raise DockerRunnerError("docker inspect state must be a JSON object")
+    running = payload.get("Running")
+    oom_killed = payload.get("OOMKilled")
+    exit_code = payload.get("ExitCode")
+    if type(running) is not bool or running:
+        raise DockerRunnerError("docker inspect must report a stopped container")
+    if type(oom_killed) is not bool:
+        raise DockerRunnerError("docker inspect OOMKilled must be bool")
+    if type(exit_code) is not int:
+        raise DockerRunnerError("docker inspect ExitCode must be int")
     return payload
 
 
@@ -271,11 +280,16 @@ class DockerSandboxRunner:
                 )
             if start.stderr:
                 raise DockerRunnerError("docker start produced unexpected stderr")
-            if state.get("ExitCode") != 0:
+            if state["ExitCode"] != 0:
                 raise DockerRunnerError("container state disagrees with successful bootstrap exit")
 
             if envelope.get("request_sha256") != request.sha256:
                 raise DockerRunnerError("bootstrap result binds a different request")
+            patched_repository_sha256 = envelope.get("patched_repository_sha256")
+            try:
+                validate_sha256(patched_repository_sha256)
+            except (TypeError, ValueError) as exc:
+                raise DockerRunnerError("bootstrap result has invalid patched repository digest") from exc
 
             timed_out = _bool(envelope, "timed_out")
             stdout_limit_exceeded = _bool(envelope, "stdout_limit_exceeded")
@@ -305,7 +319,6 @@ class DockerSandboxRunner:
             if (stdout_limit_exceeded or stderr_limit_exceeded) and exit_code == 0:
                 exit_code = None
 
-            memory_limit_exceeded = bool(state.get("OOMKilled", False))
             stdout_sha256 = self.store.put_bytes(stdout)
             stderr_sha256 = self.store.put_bytes(stderr)
             resources = ResourceUsage(
@@ -317,7 +330,7 @@ class DockerSandboxRunner:
                 request_sha256=request.sha256,
                 exit_code=exit_code,
                 timed_out=timed_out,
-                memory_limit_exceeded=memory_limit_exceeded,
+                memory_limit_exceeded=state["OOMKilled"],
                 stdout_sha256=stdout_sha256,
                 stderr_sha256=stderr_sha256,
                 resources=resources,
