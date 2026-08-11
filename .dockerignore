@@ -1,0 +1,8 @@
+*
+!docker/
+!docker/protected-runner/
+!docker/protected-runner/Dockerfile
+!src/
+!src/plural_cognition/
+!src/plural_cognition/collective/
+!src/plural_cognition/collective/docker_bootstrap.py
