@@ -355,7 +355,8 @@ def build_docker_command_plan(
         "--tmpfs",
         (
             f"{configuration.workspace_target}:"
-            f"rw,noexec,nosuid,size={limits.writable_bytes}"
+            f"rw,noexec,nosuid,size={limits.writable_bytes},"
+            f"mode=0700,uid={configuration.candidate_uid},gid={configuration.candidate_gid}"
         ),
     ]
 
