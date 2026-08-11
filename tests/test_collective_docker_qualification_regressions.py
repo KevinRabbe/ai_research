@@ -87,19 +87,37 @@ def test_parent_interference_probe_targets_bootstrap_parent_with_sigkill() -> No
     assert "os.kill(target_pid,signal_number)" in _PARENT_INTERFERENCE_SCRIPT
 
 
-def test_parent_interference_probe_accepts_only_pid1_sigkill_eperm() -> None:
+def test_parent_interference_probe_accepts_pid1_survival_after_successful_syscall() -> None:
+    evidence = _parent_interference_verifier(
+        _clean_result(),
+        b'{"signal_errno":0,"signal_number":9,"target_pid":1}\n',
+        b"",
+        {},
+    )
+    assert evidence["signal_syscall_returned_success"] is True
+    assert evidence["kernel_reported_eperm"] is False
+    assert evidence["trusted_bootstrap_result_returned"] is True
+    assert evidence["bootstrap_survived_parent_sigkill_attempt"] is True
+
+
+def test_parent_interference_probe_accepts_pid1_survival_with_eperm() -> None:
     evidence = _parent_interference_verifier(
         _clean_result(),
         b'{"signal_errno":1,"signal_number":9,"target_pid":1}\n',
         b"",
         {},
     )
-    assert evidence["kernel_denied_parent_sigkill"] is True
+    assert evidence["signal_syscall_returned_success"] is False
+    assert evidence["kernel_reported_eperm"] is True
+    assert evidence["trusted_bootstrap_result_returned"] is True
+    assert evidence["bootstrap_survived_parent_sigkill_attempt"] is True
 
-    with pytest.raises(QualificationFailure, match="not denied with EPERM"):
+
+def test_parent_interference_probe_rejects_unexpected_signal_errno() -> None:
+    with pytest.raises(QualificationFailure, match="unexpected errno"):
         _parent_interference_verifier(
             _clean_result(),
-            b'{"signal_errno":0,"signal_number":9,"target_pid":1}\n',
+            b'{"signal_errno":3,"signal_number":9,"target_pid":1}\n',
             b"",
             {},
         )
