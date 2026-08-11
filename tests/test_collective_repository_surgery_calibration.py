@@ -48,11 +48,24 @@ def _qualified_engine() -> DockerEngineIdentity:
     )
 
 
-def test_qualified_docker_binding_matches_v10_source_and_configuration() -> None:
+def test_qualified_docker_binding_matches_v10_source_and_configuration(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "plural_cognition.collective.qualified_docker._qualification_source_sha256",
+        lambda: QUALIFIED_DOCKER.qualification_source_sha256,
+    )
     configuration = QUALIFIED_DOCKER.configuration()
     assert configuration.sha256 == QUALIFIED_DOCKER_RUNNER_CONFIGURATION_SHA256
     assert QUALIFIED_DOCKER.engine_qualification_sha256 == QUALIFIED_DOCKER_ENGINE_SHA256
     QUALIFIED_DOCKER.assert_engine(_qualified_engine())
+
+
+def test_qualified_docker_binding_rejects_source_drift(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "plural_cognition.collective.qualified_docker._qualification_source_sha256",
+        lambda: "0" * 64,
+    )
+    with pytest.raises(QualifiedDockerError, match="source drifted"):
+        QUALIFIED_DOCKER.configuration()
 
 
 def test_qualified_docker_binding_rejects_engine_security_surface_drift() -> None:
