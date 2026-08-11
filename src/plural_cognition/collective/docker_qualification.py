@@ -28,6 +28,7 @@ from .docker_qualification_model import (
     canonical_json_bytes,
     validate_git_revision,
 )
+from .docker_qualification_parent_probe import parent_interference_probe_definition
 from .docker_qualification_probes import qualification_probe_definitions
 
 _BASE_IMAGE = (
@@ -51,6 +52,7 @@ def _qualification_source_sha256() -> str:
             "docker_qualification.py",
             "docker_qualification_exec.py",
             "docker_qualification_model.py",
+            "docker_qualification_parent_probe.py",
             "docker_qualification_probes.py",
             "docker_runner.py",
         )
@@ -124,7 +126,11 @@ def run_docker_qualification(
 
     configuration = DockerRunnerConfiguration(image_reference=image_reference)
     records: list[QualificationProbeRecord] = []
-    for definition in qualification_probe_definitions():
+    definitions = (
+        *qualification_probe_definitions(),
+        parent_interference_probe_definition(),
+    )
+    for definition in definitions:
         records.append(
             execute_probe(
                 name=definition.name,
