@@ -93,6 +93,7 @@ class LocalRawMindProtocol:
             _positive_int(value, field)
         _nonnegative_int(self.main_gpu, "main_gpu")
         _nonnegative_int(self.seed, "seed")
+        _positive_int(self.max_attempts, "max_attempts")
         for field, value in (
             ("device", self.device),
             ("gpu_layers", self.gpu_layers),
