@@ -265,6 +265,21 @@ def _windows_peak_rss(process_id: int) -> int | None:
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [
+        ctypes.c_ulong,
+        ctypes.c_int,
+        ctypes.c_ulong,
+    ]
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_int
+    psapi.GetProcessMemoryInfo.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(PROCESS_MEMORY_COUNTERS_EX),
+        ctypes.c_ulong,
+    ]
+    psapi.GetProcessMemoryInfo.restype = ctypes.c_int
+
     handle = kernel32.OpenProcess(0x0400 | 0x0010, False, process_id)
     if not handle:
         return None
