@@ -85,7 +85,11 @@ def build_solver_prompt_v7(blueprint: CalibrationBlueprint) -> bytes:
 
 def main(argv: Sequence[str] | None = None) -> int:
     actual_argv = tuple(sys.argv[1:] if argv is None else argv)
-    v1.build_solver_prompt = build_solver_prompt_v7
+
+    # V4 owns terminal-LF normalization. Point its frozen base-prompt hook at
+    # the V7 builder so V4 removes exactly one final LF from the new prompt,
+    # rather than silently restoring the historical V1 prompt.
+    v4._BASE_BUILD_SOLVER_PROMPT = build_solver_prompt_v7
     v3.extract_assistant_content = v6.extract_assistant_content_v6
     v4.REPORT_SCHEMA_V3 = REPORT_SCHEMA_V6
     v4.PROTOCOL_SCHEMA_V3 = PROTOCOL_SCHEMA_V6
