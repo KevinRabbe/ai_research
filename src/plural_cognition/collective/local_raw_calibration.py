@@ -1,13 +1,14 @@
 """Calibration-only raw local-model Repository Surgery measurement.
 
 This module intentionally operates only on the existing project-authored
-Repository Surgery calibration matrix.  It does not construct or inspect
+Repository Surgery calibration matrix. It does not construct or inspect
 selection/confirmation tasks and it does not instantiate the final operational
 configuration freeze.
 
-Model-generated patches are never executed on the ordinary host.  A parsed
-patch is evaluated only through the already-qualified Docker runner and the
-privileged black-box calibration evaluator.
+Model-generated code is never executed on the ordinary host. Raw output is
+parsed and structurally validated on the host, but a candidate patch is executed
+only through the already-qualified Docker runner and privileged black-box
+calibration evaluator.
 """
 
 from __future__ import annotations
@@ -16,11 +17,12 @@ import argparse
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Sequence
 
 from .artifacts import CollectiveStage, ResourceUsage, StageArtifact
 from .content_store import FileContentStore
+from .docker_bootstrap import _apply_hunks, _parse_unified_diff
 from .local_model_load_preflight import (
     _run_load,
     _runtime_observation,
@@ -93,7 +95,8 @@ def calibration_protocol_payload() -> dict[str, Any]:
         "evaluator_access": False,
         "mutable_memory": False,
         "plural_synthesis": False,
-        "output_contract": "single-unified-diff-or-one-diff-fence-v1",
+        "output_contract": "strict-unified-diff-or-one-diff-fence-v1",
+        "patch_validation": "qualified-docker-unified-diff-grammar-v1",
         "max_patch_bytes": MAX_PATCH_BYTES,
     }
 
@@ -140,39 +143,8 @@ def build_solver_prompt(blueprint: CalibrationBlueprint) -> bytes:
     return prompt.encode("utf-8")
 
 
-def _safe_patch_path(value: str, prefix: str) -> bool:
-    if not value.startswith(prefix):
-        return False
-    relative = value[len(prefix) :]
-    if not relative or "\\" in relative or relative.startswith("/"):
-        return False
-    path = PurePosixPath(relative)
-    return not path.is_absolute() and ".." not in path.parts and "." not in path.parts
-
-
-def _validate_patch_headers(patch: bytes) -> None:
-    try:
-        text = patch.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ValueError("patch is not UTF-8") from exc
-    if "\x00" in text:
-        raise ValueError("patch contains NUL")
-    lines = text.splitlines()
-    old_headers = [line for line in lines if line.startswith("--- ")]
-    new_headers = [line for line in lines if line.startswith("+++ ")]
-    if not old_headers or len(old_headers) != len(new_headers):
-        raise ValueError("patch must contain paired unified-diff file headers")
-    for old, new in zip(old_headers, new_headers, strict=True):
-        old_path = old[4:].split("\t", 1)[0].split(" ", 1)[0]
-        new_path = new[4:].split("\t", 1)[0].split(" ", 1)[0]
-        if not _safe_patch_path(old_path, "a/") or not _safe_patch_path(new_path, "b/"):
-            raise ValueError("patch contains an unsafe or non-repository path")
-    if not any(line.startswith("@@") for line in lines):
-        raise ValueError("patch contains no unified-diff hunk")
-
-
 def extract_unified_diff(raw: bytes) -> tuple[bytes, str]:
-    """Extract one bounded unified diff from a raw model response, fail closed."""
+    """Extract one bounded strict unified diff from a raw response, fail closed."""
 
     if type(raw) is not bytes:
         raise TypeError("raw must be bytes")
@@ -193,13 +165,53 @@ def extract_unified_diff(raw: bytes) -> tuple[bytes, str]:
     elif "```" in text:
         raise ValueError("model output contains unsupported markdown fencing")
 
-    if not text.startswith("--- "):
+    if not (text.startswith("--- ") or text.startswith("diff --git ")):
         raise ValueError("model output does not begin with a unified diff")
     patch = (text + "\n").encode("utf-8")
     if len(patch) > MAX_PATCH_BYTES:
         raise ValueError("model patch exceeds calibration patch-size ceiling")
-    _validate_patch_headers(patch)
+
+    # Use exactly the qualified bootstrap's strict patch grammar before any
+    # candidate patch is handed to Docker. This is parsing, not code execution.
+    parsed = _parse_unified_diff(patch)
+    if not parsed:
+        raise ValueError("model patch contains no file modifications")
     return patch, parse_mode
+
+
+def validate_patch_against_blueprint(
+    patch: bytes,
+    blueprint: CalibrationBlueprint,
+) -> None:
+    """Prove the parsed patch applies to solver-visible files in memory.
+
+    The calibration tasks require repairs to existing files. File creation,
+    deletion, and rename are rejected in this first raw probe. The same strict
+    hunk implementation used by the Docker bootstrap checks coordinates and
+    context without writing or executing candidate code on the host.
+    """
+
+    source_files: dict[str, list[str]] = {}
+    for path, raw in blueprint.buggy_files:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"solver-visible file is not UTF-8: {path}") from exc
+        if text and not text.endswith("\n"):
+            raise ValueError(f"solver-visible file lacks trailing LF: {path}")
+        source_files[path] = [] if not text else text[:-1].split("\n")
+
+    parsed = _parse_unified_diff(patch)
+    for file_patch in parsed:
+        if file_patch.old_path is None or file_patch.new_path is None:
+            raise ValueError("calibration probe does not permit file creation or deletion")
+        if file_patch.old_path != file_patch.new_path:
+            raise ValueError("calibration probe does not permit rename patches")
+        if file_patch.old_path not in source_files:
+            raise ValueError(
+                f"patch touches a file outside the solver-visible repository: {file_patch.old_path}"
+            )
+        _apply_hunks(source_files[file_patch.old_path], file_patch.hunks)
 
 
 def _load_command(
@@ -207,9 +219,7 @@ def _load_command(
     cli: Path,
     model_path: Path,
     prompt: bytes,
-    timeout_seconds: int,
 ) -> tuple[str, ...]:
-    del timeout_seconds  # timeout is enforced by _run_load, not passed to llama-cli
     prompt_text = prompt.decode("utf-8")
     return (
         str(cli),
@@ -260,19 +270,23 @@ class CalibrationTaskResult:
     task_id: str
     task_sha256: str
     prompt_sha256: str
+    producer_configuration_sha256: str
     raw_artifact_sha256: str
     raw_output_sha256: str
     raw_stdout_bytes: int
     raw_stderr_sha256: str
+    raw_stderr_bytes: int
     parse_valid: bool
     parse_mode: str | None
     parse_error: str | None
     patch_sha256: str | None
+    submission_sha256: str | None
     evaluation_sha256: str | None
     exact_accuracy: float
     evaluator_valid_rate: float
     solved: bool
     elapsed_seconds: float
+    baseline_gpu_used_mib: int
     peak_gpu_used_mib: int
     peak_process_rss_bytes: int | None
     offloaded_layers: int
@@ -301,6 +315,7 @@ class LocalRawCalibrationReport:
     software_revision: str
     model_source_freeze_sha256: str
     runtime_sha256: str
+    runtime_observation_sha256: str
     protocol_sha256: str
     candidate_ids: tuple[str, ...]
     task_ids: tuple[str, ...]
@@ -313,6 +328,7 @@ class LocalRawCalibrationReport:
             "software_revision": self.software_revision,
             "model_source_freeze_sha256": self.model_source_freeze_sha256,
             "runtime_sha256": self.runtime_sha256,
+            "runtime_observation_sha256": self.runtime_observation_sha256,
             "protocol": calibration_protocol_payload(),
             "protocol_sha256": self.protocol_sha256,
             "candidate_ids": list(self.candidate_ids),
@@ -331,12 +347,17 @@ class LocalRawCalibrationReport:
 
 
 def _summary(
-    candidate_id: str, results: Sequence[CalibrationTaskResult]
+    candidate_id: str,
+    results: Sequence[CalibrationTaskResult],
 ) -> CandidateCalibrationSummary:
     own = tuple(item for item in results if item.candidate_id == candidate_id)
     if not own:
         raise ValueError(f"candidate has no calibration results: {candidate_id}")
-    rss_values = [item.peak_process_rss_bytes for item in own if item.peak_process_rss_bytes is not None]
+    rss_values = [
+        item.peak_process_rss_bytes
+        for item in own
+        if item.peak_process_rss_bytes is not None
+    ]
     return CandidateCalibrationSummary(
         candidate_id=candidate_id,
         task_count=len(own),
@@ -348,6 +369,22 @@ def _summary(
     )
 
 
+def _selected_blueprints(task_ids: Sequence[str] | None) -> tuple[CalibrationBlueprint, ...]:
+    available = calibration_blueprints()
+    if task_ids is None:
+        return available
+    selected_ids = tuple(task_ids)
+    if not selected_ids:
+        raise ValueError("task IDs cannot be empty when supplied")
+    if len(selected_ids) != len(set(selected_ids)):
+        raise ValueError("task IDs must be unique")
+    by_id = {item.task_id: item for item in available}
+    try:
+        return tuple(by_id[task_id] for task_id in selected_ids)
+    except KeyError as exc:
+        raise ValueError(f"not a frozen calibration task: {exc.args[0]}") from exc
+
+
 def run_calibration(
     *,
     runtime_root: Path,
@@ -355,6 +392,7 @@ def run_calibration(
     artifact_root: Path,
     software_revision: str,
     candidate_ids: Sequence[str],
+    task_ids: Sequence[str] | None = None,
     timeout_seconds: int = CALIBRATION_TIMEOUT_SECONDS,
     docker_executable: str = "docker",
 ) -> LocalRawCalibrationReport:
@@ -364,16 +402,21 @@ def run_calibration(
         raise ValueError("timeout_seconds must be a positive integer")
 
     freeze = LOCAL_MODEL_SOURCE_FREEZE_V2
-    selected = tuple(candidate_ids)
-    if not selected:
+    selected_candidates = tuple(candidate_ids)
+    if not selected_candidates:
         raise ValueError("at least one candidate is required")
-    if len(selected) != len(set(selected)):
+    if len(selected_candidates) != len(set(selected_candidates)):
         raise ValueError("candidate IDs must be unique")
-    candidates = tuple(freeze.candidate(candidate_id) for candidate_id in selected)
+    candidates = tuple(
+        freeze.candidate(candidate_id) for candidate_id in selected_candidates
+    )
+    blueprints = _selected_blueprints(task_ids)
 
     _verify_runtime_archives(runtime_root)
     cli = runtime_root / "bin" / "llama-cli.exe"
     runtime_observation = _runtime_observation(cli)
+    runtime_observation_bytes = _canonical_json_bytes(asdict(runtime_observation))
+    runtime_observation_sha256 = hashlib.sha256(runtime_observation_bytes).hexdigest()
     for candidate in candidates:
         model_path = model_root / candidate.candidate_id / candidate.filename
         _verify_model_file(model_path, candidate)
@@ -389,7 +432,7 @@ def run_calibration(
     )
 
     materials = {}
-    for blueprint in calibration_blueprints():
+    for blueprint in blueprints:
         materials[blueprint.task_id] = build_matrix_material(
             blueprint=blueprint,
             store=store,
@@ -401,7 +444,7 @@ def run_calibration(
     for candidate in candidates:
         model_path = model_root / candidate.candidate_id / candidate.filename
         producer_configuration_sha256 = _candidate_probe_configuration_sha256(candidate)
-        for blueprint in calibration_blueprints():
+        for blueprint in blueprints:
             material = materials[blueprint.task_id]
             prompt = build_solver_prompt(blueprint)
             prompt_sha256 = store.put_bytes(prompt)
@@ -409,7 +452,6 @@ def run_calibration(
                 cli=cli,
                 model_path=model_path,
                 prompt=prompt,
-                timeout_seconds=timeout_seconds,
             )
             load, stdout, stderr = _run_load(command, timeout_seconds=timeout_seconds)
             raw_output_sha256 = store.put_bytes(stdout)
@@ -432,18 +474,26 @@ def run_calibration(
                 content_sha256=raw_output_sha256,
                 resources=resources,
             )
-            store.put_bytes(raw_artifact.canonical_bytes())
+            stored_raw_artifact_sha256 = store.put_bytes(raw_artifact.canonical_bytes())
+            if stored_raw_artifact_sha256 != raw_artifact.sha256:
+                raise AssertionError("raw artifact storage identity mismatch")
 
             parse_valid = False
             parse_mode: str | None = None
             parse_error: str | None = None
             patch_sha256: str | None = None
+            submission_sha256: str | None = None
             evaluation_sha256: str | None = None
             exact_accuracy = 0.0
             evaluator_valid_rate = 0.0
             solved = False
+
             try:
                 patch, parse_mode = extract_unified_diff(stdout)
+                validate_patch_against_blueprint(patch, blueprint)
+            except ValueError as exc:
+                parse_error = str(exc)
+            else:
                 parse_valid = True
                 patch_sha256 = store.put_bytes(patch)
                 submission = RepositorySurgerySubmission(
@@ -464,7 +514,7 @@ def run_calibration(
                     staging_root=staging_root,
                     patch_sha256=patch_sha256,
                     submission_sha256=submission.sha256,
-                    artifact_sha256=raw_artifact.sha256,
+                    artifact_sha256=submission.sha256,
                     docker_executable=docker_executable,
                 )
                 evaluation_sha256 = store.put_bytes(evaluation.canonical_bytes())
@@ -473,8 +523,6 @@ def run_calibration(
                 exact_accuracy = _metric(evaluation, "exact_accuracy")
                 evaluator_valid_rate = _metric(evaluation, "valid_rate")
                 solved = bool(evaluation.qualified)
-            except ValueError as exc:
-                parse_error = str(exc)
 
             results.append(
                 CalibrationTaskResult(
@@ -482,19 +530,23 @@ def run_calibration(
                     task_id=blueprint.task_id,
                     task_sha256=material.visible_task.sha256,
                     prompt_sha256=prompt_sha256,
+                    producer_configuration_sha256=producer_configuration_sha256,
                     raw_artifact_sha256=raw_artifact.sha256,
                     raw_output_sha256=raw_output_sha256,
                     raw_stdout_bytes=len(stdout),
                     raw_stderr_sha256=raw_stderr_sha256,
+                    raw_stderr_bytes=len(stderr),
                     parse_valid=parse_valid,
                     parse_mode=parse_mode,
                     parse_error=parse_error,
                     patch_sha256=patch_sha256,
+                    submission_sha256=submission_sha256,
                     evaluation_sha256=evaluation_sha256,
                     exact_accuracy=exact_accuracy,
                     evaluator_valid_rate=evaluator_valid_rate,
                     solved=solved,
                     elapsed_seconds=load.elapsed_seconds,
+                    baseline_gpu_used_mib=load.baseline_gpu_used_mib,
                     peak_gpu_used_mib=load.peak_gpu_used_mib,
                     peak_process_rss_bytes=load.peak_process_rss_bytes,
                     offloaded_layers=load.offloaded_layers,
@@ -509,29 +561,38 @@ def run_calibration(
         software_revision=software_revision,
         model_source_freeze_sha256=freeze.sha256,
         runtime_sha256=freeze.runtime.sha256,
+        runtime_observation_sha256=runtime_observation_sha256,
         protocol_sha256=CALIBRATION_PROTOCOL_SHA256,
-        candidate_ids=selected,
-        task_ids=tuple(blueprint.task_id for blueprint in calibration_blueprints()),
+        candidate_ids=selected_candidates,
+        task_ids=tuple(blueprint.task_id for blueprint in blueprints),
         results=tuple(results),
-        summaries=tuple(_summary(candidate_id, results) for candidate_id in selected),
+        summaries=tuple(
+            _summary(candidate_id, results) for candidate_id in selected_candidates
+        ),
     )
-    (artifact_root / "runtime-observation.json").write_bytes(
-        _canonical_json_bytes(asdict(runtime_observation))
-    )
+    (artifact_root / "runtime-observation.json").write_bytes(runtime_observation_bytes)
     (artifact_root / "raw-calibration.json").write_bytes(report.canonical_bytes)
     return report
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Measure frozen local capable models only on Repository Surgery calibration material."
+        description=(
+            "Measure frozen local capable models only on Repository Surgery "
+            "calibration material."
+        )
     )
     parser.add_argument("--runtime-root", required=True, type=Path)
     parser.add_argument("--model-root", required=True, type=Path)
     parser.add_argument("--artifact-root", required=True, type=Path)
     parser.add_argument("--software-revision", required=True)
     parser.add_argument("--candidate", action="append", dest="candidate_ids")
-    parser.add_argument("--timeout-seconds", type=int, default=CALIBRATION_TIMEOUT_SECONDS)
+    parser.add_argument("--task", action="append", dest="task_ids")
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=CALIBRATION_TIMEOUT_SECONDS,
+    )
     parser.add_argument("--docker-executable", default="docker")
     args = parser.parse_args(argv)
     candidate_ids = args.candidate_ids or list(LOCAL_MODEL_SOURCE_FREEZE_V2.candidate_ids)
@@ -542,6 +603,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             artifact_root=args.artifact_root,
             software_revision=args.software_revision,
             candidate_ids=candidate_ids,
+            task_ids=args.task_ids,
             timeout_seconds=args.timeout_seconds,
             docker_executable=args.docker_executable,
         )
