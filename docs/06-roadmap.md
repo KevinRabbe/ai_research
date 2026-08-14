@@ -1,5 +1,15 @@
 # Gated Research Roadmap
 
+> **Status: superseded as the primary execution roadmap.**
+>
+> This document is retained as the historical gated sequence that produced the initial Boolean-world and frozen-weight experiment program. The revised primary path is [`22-capable-heterogeneous-collective-roadmap.md`](22-capable-heterogeneous-collective-roadmap.md).
+>
+> The pivot does not invalidate the experiments or principles below. It changes their role: small custom-model experiments are now mechanism-science work rather than prerequisites for the capable collective. Heterogeneous pretrained minds, immutable stage attribution, harness amplification, and externally verified architectural self-improvement move earlier in the primary path.
+>
+> The proposed V1.2-t40m horizon extension and execution of the original small-model frozen-weight SI experiment are parked, not discarded.
+
+## Historical roadmap
+
 ## Principle
 
 Each phase exists to answer a narrower question before the project earns permission to add complexity.
@@ -291,7 +301,9 @@ Pause or redirect when:
 - candidate containment or rollback assumptions fail;
 - repeated redesign fails to produce information supporting the route.
 
-## Immediate next actions
+## Historical immediate next actions
+
+The original immediate actions below are retained for provenance and are no longer the governing execution sequence:
 
 1. Select one or two deterministic task families.
 2. Build task generators and exact verifiers.
@@ -301,3 +313,5 @@ Pause or redirect when:
 6. Run same-weight and different-weight training across multiple seeds.
 7. Execute the controlled comparison.
 8. Publish all outcomes before expanding scope.
+
+For current implementation order, use [`22-capable-heterogeneous-collective-roadmap.md`](22-capable-heterogeneous-collective-roadmap.md).

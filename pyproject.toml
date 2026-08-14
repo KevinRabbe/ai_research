@@ -13,6 +13,7 @@ dependencies = []
 
 [project.scripts]
 plural-cognition-cuda-preflight = "plural_cognition.cuda_preflight:main"
+plural-cognition-sandbox-preflight = "plural_cognition.collective.sandbox_preflight:main"
 plural-cognition-resolve-screening = "plural_cognition.prepare_cli:resolve_screening_plan_main"
 plural-cognition-resolve-t20m-screening = "plural_cognition.recovery_cli:resolve_t20m_screening_main"
 plural-cognition-resolve-t30m-screening = "plural_cognition.recovery_cli:resolve_t30m_screening_main"
