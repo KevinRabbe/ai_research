@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from plural_cognition.collective.consumed_selection_development_v2 import DEVELOPMENT_PROTOCOL_SHA256_V2
-from plural_cognition.collective.local_consumed_selection_development_v2 import (
+from plural_cognition.collective.local_consumed_selection_development_v2_runner import (
     _development_configuration_sha256,
     _solver_prompt,
 )
