@@ -59,3 +59,58 @@ def test_completed_suite_rejects_content_drift(tmp_path: Path) -> None:
     path.write_text(json.dumps(suite), encoding="ascii")
     with pytest.raises(RuntimeError, match="content drifted"):
         gate._validate_completed_suite(path, software_revision=revision)
+
+
+def test_unknown_frozen_size_uses_exact_sha_only(tmp_path: Path, monkeypatch) -> None:
+    candidate_id = "phi-4-reasoning-plus-14b-q5km"
+    filename = "phi.gguf"
+    raw = b"immutable-phi-artifact"
+    path = tmp_path / candidate_id / filename
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw)
+    monkeypatch.setattr(gate._runner, "CANDIDATE_IDS_V2", (candidate_id,))
+    sources = {
+        candidate_id: {
+            "filename": filename,
+            "artifact_size_bytes": None,
+            "artifact_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+    }
+    gate._verify_model_files_with_optional_frozen_size(tmp_path, sources)
+
+
+def test_unknown_frozen_size_still_rejects_sha_drift(tmp_path: Path, monkeypatch) -> None:
+    candidate_id = "phi-4-reasoning-plus-14b-q5km"
+    filename = "phi.gguf"
+    path = tmp_path / candidate_id / filename
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"wrong-bytes")
+    monkeypatch.setattr(gate._runner, "CANDIDATE_IDS_V2", (candidate_id,))
+    sources = {
+        candidate_id: {
+            "filename": filename,
+            "artifact_size_bytes": None,
+            "artifact_sha256": "0" * 64,
+        }
+    }
+    with pytest.raises(RuntimeError, match="SHA-256 mismatch"):
+        gate._verify_model_files_with_optional_frozen_size(tmp_path, sources)
+
+
+def test_known_frozen_size_mismatch_remains_fatal(tmp_path: Path, monkeypatch) -> None:
+    candidate_id = "known-size"
+    filename = "known.gguf"
+    raw = b"known-size-artifact"
+    path = tmp_path / candidate_id / filename
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw)
+    monkeypatch.setattr(gate._runner, "CANDIDATE_IDS_V2", (candidate_id,))
+    sources = {
+        candidate_id: {
+            "filename": filename,
+            "artifact_size_bytes": len(raw) + 1,
+            "artifact_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+    }
+    with pytest.raises(RuntimeError, match="model size mismatch"):
+        gate._verify_model_files_with_optional_frozen_size(tmp_path, sources)
