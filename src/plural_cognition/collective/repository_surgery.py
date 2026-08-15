@@ -52,6 +52,7 @@ class MutationKind(str, Enum):
     BOUNDARY = "boundary"
     API_CONTRACT = "api-contract"
     MULTI_FILE_BEHAVIOR = "multi-file-behavior"
+    MULTI_FILE = "multi-file-behavior"
     STATE_MANAGEMENT = "state-management"
     ERROR_HANDLING = "error-handling"
     ALIASING = "aliasing"
