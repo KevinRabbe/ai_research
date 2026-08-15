@@ -4,6 +4,8 @@ import inspect
 
 from plural_cognition.collective import candidate_pool_v2_calibration_protocol as protocol
 from plural_cognition.collective import candidate_pool_v2_full_file as full_file
+from plural_cognition.collective.local_models import LOCAL_MODEL_SOURCE_FREEZE_V2
+from plural_cognition.collective.local_operational_freeze_v1 import FINAL_RESOURCE_BUDGET_SHA256
 from plural_cognition.collective.local_raw_calibration import validate_patch_against_blueprint
 from plural_cognition.collective.repository_surgery_calibration_matrix import calibration_blueprints
 
@@ -15,7 +17,11 @@ def _blueprints():
 def test_v2_calibration_protocol_identity_and_gate() -> None:
     payload = protocol.candidate_pool_v2_calibration_protocol_payload()
     assert protocol.FINAL_CALIBRATION_PROTOCOL_SHA256_V2 == protocol.EXPECTED_CALIBRATION_PROTOCOL_SHA256_V2
-    assert protocol.FINAL_CALIBRATION_PROTOCOL_SHA256_V2 == "99b1584dbc91c8dc0c96ad0e3cb212e965dffdde1a63b03c5be8fff81a8b2cc1"
+    assert protocol.FINAL_CALIBRATION_PROTOCOL_SHA256_V2 == "72a45b90b3dfa8b21eb9464271a2f419193f444f60dc477fd40444f2959d8549"
+    assert payload["incumbent_model_source_freeze_sha256"] == protocol.INCUMBENT_MODEL_SOURCE_FREEZE_SHA256_V2
+    assert protocol.INCUMBENT_MODEL_SOURCE_FREEZE_SHA256_V2 == LOCAL_MODEL_SOURCE_FREEZE_V2.sha256
+    assert payload["predecessor_resource_budget_sha256"] == protocol.PREDECESSOR_RESOURCE_BUDGET_SHA256_V2
+    assert protocol.PREDECESSOR_RESOURCE_BUDGET_SHA256_V2 == FINAL_RESOURCE_BUDGET_SHA256
     assert tuple(payload["candidate_ids"]) == protocol.CANDIDATE_IDS_V2
     assert len(protocol.CANDIDATE_IDS_V2) == 6
     assert tuple(payload["calibration_matrix"]["task_ids"]) == protocol.CALIBRATION_TASK_IDS_V2
