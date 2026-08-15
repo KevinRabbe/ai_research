@@ -14,7 +14,7 @@ def _blueprints():
 def test_v2_calibration_protocol_identity_and_gate() -> None:
     payload = protocol.candidate_pool_v2_calibration_protocol_payload()
     assert protocol.FINAL_CALIBRATION_PROTOCOL_SHA256_V2 == protocol.EXPECTED_CALIBRATION_PROTOCOL_SHA256_V2
-    assert protocol.FINAL_CALIBRATION_PROTOCOL_SHA256_V2 == "58a087adda5e6a1f0d10281ebc7bc5f89434ac24d88bd18aadec9aedf787f31c"
+    assert protocol.FINAL_CALIBRATION_PROTOCOL_SHA256_V2 == "99b1584dbc91c8dc0c96ad0e3cb212e965dffdde1a63b03c5be8fff81a8b2cc1"
     assert tuple(payload["candidate_ids"]) == protocol.CANDIDATE_IDS_V2
     assert len(protocol.CANDIDATE_IDS_V2) == 6
     assert tuple(payload["calibration_matrix"]["task_ids"]) == protocol.CALIBRATION_TASK_IDS_V2
@@ -28,6 +28,16 @@ def test_v2_calibration_protocol_identity_and_gate() -> None:
     assert payload["gate"]["per_candidate_prompt_tuning_after_observation"] is False
     assert payload["gate"]["reruns_for_failed_candidates"] is False
     assert payload["evidence_policy"]["selection_evidence"] is False
+    budget = payload["resource_budget"]
+    assert budget["context_tokens"] == 4096
+    assert budget["predict_tokens"] == 2048
+    assert budget["gpu_layers"] == "all"
+    assert budget["device"] == "CUDA0"
+    assert budget["fit"] == "off"
+    assert budget["split_mode"] == "none"
+    assert budget["cache_type_k"] == budget["cache_type_v"] == "f16"
+    assert budget["load_mode"] == "mmap"
+    assert budget["offline"] is True
 
 
 def test_v2_calibration_protocol_binds_successful_load_repair() -> None:
