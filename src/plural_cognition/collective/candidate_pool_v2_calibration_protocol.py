@@ -15,7 +15,7 @@ CALIBRATION_PROTOCOL_SCHEMA_V2 = (
     "plural-cognition-candidate-pool-v2-calibration-gate-protocol-v1"
 )
 EXPECTED_CALIBRATION_PROTOCOL_SHA256_V2 = (
-    "58a087adda5e6a1f0d10281ebc7bc5f89434ac24d88bd18aadec9aedf787f31c"
+    "99b1584dbc91c8dc0c96ad0e3cb212e965dffdde1a63b03c5be8fff81a8b2cc1"
 )
 QUALIFICATION_PROTOCOL_SHA256_V2 = (
     "f3886fa683aeb5ab3343dc6c388da4b58ebc63f2911be01602fa2fdc2ddaa4b6"
@@ -123,6 +123,15 @@ def candidate_pool_v2_calibration_protocol_payload() -> dict[str, Any]:
             "batch_size": CALIBRATION_BATCH_TOKENS_V2,
             "microbatch_size": CALIBRATION_MICROBATCH_TOKENS_V2,
             "flash_attention": "auto",
+            "gpu_layers": "all",
+            "device": "CUDA0",
+            "fit": "off",
+            "split_mode": "none",
+            "main_gpu": 0,
+            "cache_type_k": "f16",
+            "cache_type_v": "f16",
+            "load_mode": "mmap",
+            "offline": True,
             "temperature": 0.0,
             "seed": 1,
             "full_gpu_offload_required": True,
@@ -136,6 +145,9 @@ def candidate_pool_v2_calibration_protocol_payload() -> dict[str, Any]:
             "terminal_prompt_lf": False,
             "reasoning_eof_policy": "closed-reasoning-empty-answer-residual-lf-v2",
             "log_verbosity": CALIBRATION_LOG_VERBOSITY_V2,
+            "no_display_prompt": True,
+            "log_colors": False,
+            "log_timestamps": False,
         },
         "gate": {
             "required_parse_valid_count": REQUIRED_PARSE_VALID_COUNT_V2,
