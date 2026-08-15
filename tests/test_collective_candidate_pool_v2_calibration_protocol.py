@@ -4,6 +4,7 @@ import inspect
 
 from plural_cognition.collective import candidate_pool_v2_calibration_protocol as protocol
 from plural_cognition.collective import candidate_pool_v2_full_file as full_file
+from plural_cognition.collective.local_raw_calibration import validate_patch_against_blueprint
 from plural_cognition.collective.repository_surgery_calibration_matrix import calibration_blueprints
 
 
@@ -80,13 +81,19 @@ def test_v2_issue_normalization_changes_only_obsolete_serialization_clause() -> 
         assert full_file.normalized_issue_text_v2(blueprint) == expected
 
 
-def test_v2_gold_full_file_outputs_reconstruct_all_six_gold_patches() -> None:
+def test_v2_gold_full_file_outputs_reconstruct_clean_files_and_valid_patches() -> None:
     for blueprint in _blueprints():
-        patch, mode = full_file.extract_full_file_patch_v2(
-            full_file.gold_full_file_output_v2(blueprint), blueprint
-        )
+        raw = full_file.gold_full_file_output_v2(blueprint)
+        blocks = full_file.parse_full_file_replacements_v2(raw)
+        changed = full_file._materialize_replacements_v2(blueprint=blueprint, blocks=blocks)
+        clean = {path: data.decode("utf-8") for path, data in blueprint.clean_files}
+        buggy = {path: data.decode("utf-8") for path, data in blueprint.buggy_files}
+        assert changed
+        assert set(changed) == {path for path in clean if clean[path] != buggy[path]}
+        assert all(changed[path] == clean[path] for path in changed)
+        patch, mode = full_file.extract_full_file_patch_v2(raw, blueprint)
         assert mode == "raw-full-file-replacement"
-        assert patch == blueprint.gold_patch
+        validate_patch_against_blueprint(patch, blueprint)
 
 
 def test_v2_whole_file_parser_preserves_payload_and_allows_wrapper_whitespace() -> None:
@@ -94,7 +101,7 @@ def test_v2_whole_file_parser_preserves_payload_and_allows_wrapper_whitespace() 
     clean = dict(blueprint.clean_files)["app.py"].decode("utf-8")[:-1]
     raw = f"  FILE app.py\t\n \t<<<<<<< CONTENT\t\n{clean}\n  >>>>>>> CONTENT \t".encode("utf-8")
     patch, _ = full_file.extract_full_file_patch_v2(raw, blueprint)
-    assert patch == blueprint.gold_patch
+    validate_patch_against_blueprint(patch, blueprint)
 
 
 def test_v2_calibration_modules_do_not_import_selection_material() -> None:
