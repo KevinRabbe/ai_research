@@ -3,6 +3,10 @@
 A completed suite is immutable evidence.  This entrypoint validates and reuses it
 verbatim instead of delegating to the pair runner, while incomplete states are
 handled by the runner's global partial-pair preflight.
+
+One source-frozen challenger intentionally has no pre-inference byte-size value.
+For that artifact the immutable SHA-256 remains authoritative; candidates with a
+frozen byte size continue to require both exact size and SHA-256.
 """
 from __future__ import annotations
 
@@ -15,12 +19,39 @@ from typing import Any, Sequence
 from .candidate_pool_v2_calibration_protocol import (
     FINAL_CALIBRATION_PROTOCOL_SHA256_V2,
 )
+from . import local_candidate_pool_v2_calibration as _runner
 from .local_candidate_pool_v2_calibration import (
     CALIBRATION_SUITE_SCHEMA_V2,
     DEFAULT_TIMEOUT_SECONDS_V2,
     _canonical_json_bytes,
-    run_calibration,
 )
+
+
+def _verify_model_files_with_optional_frozen_size(
+    model_root: Path, sources: dict[str, dict[str, Any]]
+) -> None:
+    """Verify frozen model artifacts without inventing a missing frozen size.
+
+    A ``None`` artifact_size_bytes value means the pre-inference source freeze
+    deliberately bound the artifact by immutable revision and SHA-256 only.  We
+    therefore record/accept the observed local size implicitly but never replace
+    or relax the SHA-256 identity.  Any non-None frozen size remains mandatory.
+    """
+
+    for candidate_id in _runner.CANDIDATE_IDS_V2:
+        source = sources[candidate_id]
+        path = model_root / candidate_id / source["filename"]
+        if not path.is_file():
+            raise RuntimeError(f"required v2 calibration model is missing: {path}")
+        size = path.stat().st_size
+        frozen_size = source["artifact_size_bytes"]
+        if frozen_size is not None and size != int(frozen_size):
+            raise RuntimeError(
+                f"model size mismatch for {candidate_id}: {size} != {frozen_size}"
+            )
+        digest = _runner._sha256_file(path)
+        if digest != source["artifact_sha256"]:
+            raise RuntimeError(f"model SHA-256 mismatch for {candidate_id}: {digest}")
 
 
 def _validate_completed_suite(path: Path, *, software_revision: str) -> dict[str, Any]:
@@ -92,7 +123,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_suite(suite, reused=True)
             return 0
-        suite = run_calibration(
+
+        # Compatibility repair for the source-frozen Phi artifact whose
+        # pre-inference freeze intentionally records artifact_size_bytes=None.
+        # This changes only deterministic local artifact verification; all
+        # prompts, model/runtime settings, pair identities, grading, and gate
+        # thresholds remain owned by the frozen runner/protocol.
+        _runner._verify_model_files = _verify_model_files_with_optional_frozen_size
+        suite = _runner.run_calibration(
             runtime_root=args.runtime_root,
             model_root=args.model_root,
             load_repair_root=args.load_repair_root,
