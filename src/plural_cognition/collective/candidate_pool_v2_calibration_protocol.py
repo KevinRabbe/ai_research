@@ -15,13 +15,19 @@ CALIBRATION_PROTOCOL_SCHEMA_V2 = (
     "plural-cognition-candidate-pool-v2-calibration-gate-protocol-v1"
 )
 EXPECTED_CALIBRATION_PROTOCOL_SHA256_V2 = (
-    "99b1584dbc91c8dc0c96ad0e3cb212e965dffdde1a63b03c5be8fff81a8b2cc1"
+    "72a45b90b3dfa8b21eb9464271a2f419193f444f60dc477fd40444f2959d8549"
 )
 QUALIFICATION_PROTOCOL_SHA256_V2 = (
     "f3886fa683aeb5ab3343dc6c388da4b58ebc63f2911be01602fa2fdc2ddaa4b6"
 )
 SOURCE_FREEZE_SHA256_V2 = (
     "22aa8b34a6f27cc87e651099d8194acce00ee736161d00d9866f4463322b9f2d"
+)
+INCUMBENT_MODEL_SOURCE_FREEZE_SHA256_V2 = (
+    "e8b22970d505ed0ffb8ea07a122c63d497db89454745083d9e69fa6950942248"
+)
+PREDECESSOR_RESOURCE_BUDGET_SHA256_V2 = (
+    "5508ba6ff0f093fd4cf10505513c41951bb1d454992fe6bb13a48bae83c803f7"
 )
 LOAD_OBSERVER_REPAIR_REVISION_V2 = "15b55a51e3fa35e4f146009d3af18c4769cfafb1"
 LOAD_OBSERVER_REPAIR_PLAN_SHA256_V2 = (
@@ -84,6 +90,8 @@ def candidate_pool_v2_calibration_protocol_payload() -> dict[str, Any]:
         "scientific_status": "candidate-development-v2-calibration-only-not-selection-evidence",
         "candidate_pool_v2_protocol_sha256": QUALIFICATION_PROTOCOL_SHA256_V2,
         "source_freeze_sha256": SOURCE_FREEZE_SHA256_V2,
+        "incumbent_model_source_freeze_sha256": INCUMBENT_MODEL_SOURCE_FREEZE_SHA256_V2,
+        "predecessor_resource_budget_sha256": PREDECESSOR_RESOURCE_BUDGET_SHA256_V2,
         "load_observer_repair": {
             "software_revision": LOAD_OBSERVER_REPAIR_REVISION_V2,
             "recovery_plan_sha256": LOAD_OBSERVER_REPAIR_PLAN_SHA256_V2,
