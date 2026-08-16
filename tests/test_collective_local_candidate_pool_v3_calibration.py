@@ -197,7 +197,8 @@ def test_v3_attempt_marker_precedes_inference_and_completed_pair_is_reused(
         docker_executable="docker",
     )
     assert attempted_again is False
-    assert reused == report
+    assert reused["report_sha256"] == report["report_sha256"]
+    assert v3._canonical_json_bytes(reused) == v3._canonical_json_bytes(report)
     assert calls == 1
 
 
