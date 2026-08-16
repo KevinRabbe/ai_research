@@ -1,14 +1,15 @@
 """Fresh six-task development-calibration pack for candidate-pool v3.
 
-The v3 representation protocol is already frozen before this task material exists.
-These tasks are new development evidence: one task for each repository-surgery
-defect family, with no ID reuse from v2 calibration or the consumed v2 selection
-split. Qualification executes only project-authored baselines and gold repairs in
-the qualified Docker evaluator; candidate models are never invoked here.
+The v3 representation protocol is frozen before this task material. These tasks
+are new development evidence: one task for each repository-surgery defect family,
+with no ID reuse from v2 calibration or the consumed v2 selection split.
+Qualification executes only project-authored baselines and gold repairs in the
+qualified Docker evaluator; candidate models are never invoked here.
 """
 from __future__ import annotations
 
 import argparse
+import difflib
 import hashlib
 import json
 from dataclasses import dataclass
@@ -28,8 +29,12 @@ from .candidate_pool_v3_representation_protocol import (
 from .content_store import FileContentStore
 from .qualified_docker import QUALIFIED_DOCKER, probe_qualified_docker_configuration
 from .repository_surgery import MutationKind
-from .repository_surgery_calibration_matrix import _evaluate_patch, _metric
-from .repository_surgery_selection_pack_v1 import SelectionBlueprint, build_selection_material
+from .repository_surgery_calibration_matrix import (
+    CalibrationBlueprint,
+    _evaluate_patch,
+    _metric,
+    build_matrix_material,
+)
 
 CALIBRATION_PACK_SCHEMA_V3 = "plural-cognition-repository-surgery-calibration-pack-v3"
 CALIBRATION_QUALIFICATION_SCHEMA_V3 = (
@@ -57,16 +62,37 @@ def _canonical_json_bytes(payload: Any) -> bytes:
     ).encode("ascii")
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while chunk := handle.read(8 * 1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _src(text: str) -> bytes:
     return text.encode("utf-8")
+
+
+def _canonical_gold_patch(
+    clean_files: tuple[tuple[str, bytes], ...],
+    buggy_files: tuple[tuple[str, bytes], ...],
+) -> bytes:
+    clean = dict(clean_files)
+    buggy = dict(buggy_files)
+    if tuple(sorted(clean)) != tuple(sorted(buggy)):
+        raise ValueError("clean and buggy file sets must match")
+    pieces: list[str] = []
+    for path in sorted(clean):
+        before = buggy[path].decode("utf-8")
+        after = clean[path].decode("utf-8")
+        if before == after:
+            continue
+        pieces.extend(
+            difflib.unified_diff(
+                before.splitlines(),
+                after.splitlines(),
+                fromfile=f"a/{path}",
+                tofile=f"b/{path}",
+                n=3,
+                lineterm="",
+            )
+        )
+    if not pieces:
+        raise ValueError("v3 calibration blueprint contains no repository mutation")
+    return ("\n".join(pieces) + "\n").encode("utf-8")
 
 
 def _blueprint(
@@ -80,13 +106,16 @@ def _blueprint(
     public: tuple[dict[str, Any], ...],
     protected: tuple[tuple[str, dict[str, Any], dict[str, Any]], ...],
     mutation: dict[str, Any],
-) -> SelectionBlueprint:
-    return SelectionBlueprint(
+) -> CalibrationBlueprint:
+    clean_files = tuple(sorted(clean_files))
+    buggy_files = tuple(sorted(buggy_files))
+    return CalibrationBlueprint(
         task_id=task_id,
         mutation_kind=kind,
         generation_seed=seed,
-        clean_files=tuple(sorted(clean_files)),
-        buggy_files=tuple(sorted(buggy_files)),
+        clean_files=clean_files,
+        buggy_files=buggy_files,
+        gold_patch=_canonical_gold_patch(clean_files, buggy_files),
         issue_prompt=issue.encode("utf-8") + b"\n",
         public_cases=public,
         protected_cases=protected,
@@ -94,7 +123,7 @@ def _blueprint(
     )
 
 
-def calibration_blueprints_v3() -> tuple[SelectionBlueprint, ...]:
+def calibration_blueprints_v3() -> tuple[CalibrationBlueprint, ...]:
     api_clean = _src('''import json\nimport sys\n\ndef main() -> None:\n    payload = json.loads(sys.stdin.read())\n    locale = str(payload.get("locale", "en"))\n    result = {"locale": locale, "message": str(payload["message"])}\n    sys.stdout.write(json.dumps(result, sort_keys=True, separators=(",", ":")) + "\\n")\n\nif __name__ == "__main__":\n    main()\n''')
     api_buggy = api_clean.replace(b'payload.get("locale", "en")', b'payload["locale"]')
 
@@ -122,13 +151,8 @@ def calibration_blueprints_v3() -> tuple[SelectionBlueprint, ...]:
             seed=CALIBRATION_SEEDS_V3[0],
             clean_files=(("app.py", api_clean),),
             buggy_files=(("app.py", api_buggy),),
-            issue=(
-                "Fix the message JSON API. 'message' remains required; 'locale' is optional "
-                "and must default to 'en' when omitted."
-            ),
-            public=(
-                {"input": {"message": "hi", "locale": "de"}, "expected": {"locale": "de", "message": "hi"}},
-            ),
+            issue="Fix the message JSON API. 'message' remains required; 'locale' is optional and must default to 'en' when omitted.",
+            public=({"input": {"message": "hi", "locale": "de"}, "expected": {"locale": "de", "message": "hi"}},),
             protected=(
                 ("case-01-explicit", {"message": "hi", "locale": "de"}, {"locale": "de", "message": "hi"}),
                 ("case-02-default", {"message": "hello"}, {"locale": "en", "message": "hello"}),
@@ -162,13 +186,8 @@ def calibration_blueprints_v3() -> tuple[SelectionBlueprint, ...]:
             seed=CALIBRATION_SEEDS_V3[2],
             clean_files=(("app.py", error_clean),),
             buggy_files=(("app.py", error_buggy),),
-            issue=(
-                "Fix reciprocal error handling. A zero divisor is invalid input and must return "
-                "the existing invalid-input JSON response rather than crashing."
-            ),
-            public=(
-                {"input": {"divisor": 2}, "expected": {"ok": True, "value": 0.5}},
-            ),
+            issue="Fix reciprocal error handling. A zero divisor is invalid input and must return the existing invalid-input JSON response rather than crashing.",
+            public=({"input": {"divisor": 2}, "expected": {"ok": True, "value": 0.5}},),
             protected=(
                 ("case-01-positive", {"divisor": 4}, {"ok": True, "value": 0.25}),
                 ("case-02-one", {"divisor": 1}, {"ok": True, "value": 1.0}),
@@ -184,9 +203,7 @@ def calibration_blueprints_v3() -> tuple[SelectionBlueprint, ...]:
             clean_files=(("app.py", local_clean),),
             buggy_files=(("app.py", local_buggy),),
             issue="Fix points accounting. Penalty points must be subtracted from the base score, not added.",
-            public=(
-                {"input": {"base": 20, "penalty": 3}, "expected": {"points": 17}},
-            ),
+            public=({"input": {"base": 20, "penalty": 3}, "expected": {"points": 17}},),
             protected=(
                 ("case-01-basic", {"base": 20, "penalty": 3}, {"points": 17}),
                 ("case-02-zero", {"base": 5, "penalty": 0}, {"points": 5}),
@@ -201,10 +218,7 @@ def calibration_blueprints_v3() -> tuple[SelectionBlueprint, ...]:
             seed=CALIBRATION_SEEDS_V3[4],
             clean_files=(("app.py", multi_app_clean), ("fees.py", multi_helper_clean)),
             buggy_files=(("app.py", multi_app_buggy), ("fees.py", multi_helper_buggy)),
-            issue=(
-                "Fix checkout service fees. The service fee is added to subtotal, and the 'pro' "
-                "plan fee is 2 while other plans cost 5. Repair all files needed."
-            ),
+            issue="Fix checkout service fees. The service fee is added to subtotal, and the 'pro' plan fee is 2 while other plans cost 5. Repair all files needed.",
             public=(
                 {"input": {"subtotal": 20, "plan": "pro"}, "expected": {"total": 22}},
                 {"input": {"subtotal": 20, "plan": "basic"}, "expected": {"total": 25}},
@@ -223,13 +237,8 @@ def calibration_blueprints_v3() -> tuple[SelectionBlueprint, ...]:
             seed=CALIBRATION_SEEDS_V3[5],
             clean_files=(("app.py", state_clean),),
             buggy_files=(("app.py", state_buggy),),
-            issue=(
-                "Fix DistinctTracker state. Each returned count must be the number of distinct "
-                "values observed across the entire sequence so far."
-            ),
-            public=(
-                {"input": {"values": [2, 2, 5]}, "expected": {"counts": [1, 1, 2]}},
-            ),
+            issue="Fix DistinctTracker state. Each returned count must be the number of distinct values observed across the entire sequence so far.",
+            public=({"input": {"values": [2, 2, 5]}, "expected": {"counts": [1, 1, 2]}},),
             protected=(
                 ("case-01-repeat", {"values": [2, 2, 5]}, {"counts": [1, 1, 2]}),
                 ("case-02-growing", {"values": [1, 2, 3]}, {"counts": [1, 2, 3]}),
@@ -352,37 +361,31 @@ class CalibrationQualificationReportV3:
 
 
 def run_calibration_pack_v3_qualification(
-    *,
-    artifact_root: Path,
-    software_revision: str,
-    docker_executable: str = "docker",
+    *, artifact_root: Path, software_revision: str, docker_executable: str = "docker"
 ) -> CalibrationQualificationReportV3:
     validate_calibration_pack_v3_freshness()
     artifact_root = Path(artifact_root)
     if artifact_root.exists() and any(artifact_root.iterdir()):
         raise ValueError("artifact_root must be absent or empty")
     artifact_root.mkdir(parents=True, exist_ok=True)
-
     store = FileContentStore(artifact_root / "store")
     build_root = artifact_root / "build"
     build_root.mkdir()
     staging_root = artifact_root / "staging"
     configuration = probe_qualified_docker_configuration(
-        software_revision=software_revision,
-        docker_executable=docker_executable,
+        software_revision=software_revision, docker_executable=docker_executable
     )
     empty_patch_sha256 = store.put_bytes(b"")
     entries: list[CalibrationPackEntryV3] = []
     qualifications: list[CalibrationTaskQualificationV3] = []
 
     for blueprint in calibration_blueprints_v3():
-        material = build_selection_material(
+        material = build_matrix_material(
             blueprint=blueprint,
             store=store,
             work_root=build_root / blueprint.task_id,
             software_revision=software_revision,
         )
-        prompt_sha256 = hashlib.sha256(solver_prompt_transport_v3(blueprint)).hexdigest()
         entries.append(
             CalibrationPackEntryV3(
                 task_id=blueprint.task_id,
@@ -390,16 +393,12 @@ def run_calibration_pack_v3_qualification(
                 task_sha256=material.visible_task.sha256,
                 generation_record_sha256=material.generation_record.sha256,
                 evaluation_plan_sha256=material.evaluation_plan.sha256,
-                solver_prompt_sha256=prompt_sha256,
+                solver_prompt_sha256=hashlib.sha256(solver_prompt_transport_v3(blueprint)).hexdigest(),
             )
         )
-
         baseline_submission_sha256 = store.put_bytes(
             _canonical_json_bytes(
-                {
-                    "schema": "project-authored-calibration-pack-baseline-v3",
-                    "task_id": blueprint.task_id,
-                }
+                {"schema": "project-authored-calibration-pack-baseline-v3", "task_id": blueprint.task_id}
             )
         )
         baseline = _evaluate_patch(
@@ -447,11 +446,12 @@ def run_calibration_pack_v3_qualification(
         entries=tuple(entries),
         qualifications=tuple(qualifications),
     )
-    pack_path = artifact_root / "calibration-pack-v3.json"
-    qualification_path = artifact_root / "calibration-qualification-v3.json"
-    pack_path.write_bytes(_canonical_json_bytes(report.pack_payload()) + b"\n")
-    qualification_path.write_bytes(_canonical_json_bytes(report.payload()) + b"\n")
-
+    (artifact_root / "calibration-pack-v3.json").write_bytes(
+        _canonical_json_bytes(report.pack_payload()) + b"\n"
+    )
+    (artifact_root / "calibration-qualification-v3.json").write_bytes(
+        _canonical_json_bytes(report.payload()) + b"\n"
+    )
     print("status=CALIBRATION_PACK_V3_QUALIFIED")
     print(f"representation_protocol_sha256={EXPECTED_V3_REPRESENTATION_PROTOCOL_SHA256}")
     print(f"calibration_pack_sha256={report.pack_sha256}")
